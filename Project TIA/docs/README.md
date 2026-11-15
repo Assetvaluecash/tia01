@@ -1,6 +1,6 @@
 # TIA (Test Impact Analysis) Documentation
 
-This folder contains the **Architecture Diagram** and **Interactive Codebase Mind Map** created to help you understand and navigate the TIA codebase rapidly.
+Every document about TIA: what it must do (PRD), how it is designed and built, how to run and use it, and how its knowledge is represented.
 
 ---
 
@@ -9,7 +9,6 @@ This folder contains the **Architecture Diagram** and **Interactive Codebase Min
 | Document | Format | Description |
 | :--- | :--- | :--- |
 | [**Architecture as built**](ARCHITECTURE-AS-BUILT.md) ([HTML, open in a browser](ARCHITECTURE-AS-BUILT.html)) | Markdown & HTML (generated from the code) | The system as it is coded: the system picture, the 10 layers with every module in them, the layer rule (checked against the real imports on every test run), how work flows, every database table and its tenant isolation, deployment, and where the build differs from the design. |
-| 🌐 [Interactive Architecture Diagram](architecture-diagram.html) · 🧠 [Codebase Mind Map](mind-map.html) | HTML (needs internet for Mermaid) | Early pictures from 30 Oct 2026, covering about 30 of today's 97 modules. Right as far as they go, but incomplete; use the as-built architecture above. |
 | 📄 [**PRD (Product Requirements Document)**](PRD.md) ([PDF](PRD.pdf)) | Markdown & PDF | Complete product specification, user journeys, release phases, and acceptance criteria. |
 | 🏛️ [**Architecture Specification**](ARCHITECTURE.md) ([PDF](ARCHITECTURE.pdf)) | Markdown & PDF | High-level system design, multi-tenant isolation, data flows, and component models. |
 | ⚙️ [**Technical Framework**](TECHNICAL-FRAMEWORK.md) ([PDF](TECHNICAL-FRAMEWORK.pdf)) | Markdown & PDF | Technical implementation framework, algorithm specifications, and integration requirements. |
@@ -17,7 +16,9 @@ This folder contains the **Architecture Diagram** and **Interactive Codebase Min
 | [Administrator guide](ADMIN-GUIDE.md) · [User guide](USER-GUIDE.md) | Markdown | Installing, configuring and operating TIA; using its reports and views. |
 | [API reference](API.md) · [OpenAPI](openapi.json) · [Python client](../sdk/python/tia_client/__init__.py) | Markdown, JSON | Every route with its permission (generated). |
 | [Operations: HA, backup, DR](OPERATIONS.md) · [Compliance mapping](COMPLIANCE.md) · [Security](SECURITY.md) | Markdown | RPO/RTO runbook, SOC 2 / ISO 27001 control mapping, threat model. |
-| [Language adapter SDK](ADAPTER-SDK.md) · [Graph store decision](GRAPH-STORE.md) · [Performance](PERFORMANCE.md) · [Release gates](RELEASE-GATES.md) | Markdown | Adding languages; why PostgreSQL holds the graph; benchmark results; gate assessment. |
+| [Language adapter SDK](ADAPTER-SDK.md) · [Graph store decision](GRAPH-STORE.md) · [Neo4j mirror](NEO4J.md) · [Performance](PERFORMANCE.md) · [Release gates](RELEASE-GATES.md) | Markdown | Adding languages; why PostgreSQL holds the graph; the Neo4j mirror for Knowledge Fabric; benchmark results; gate assessment. |
+| [**Graph schema**](GRAPH-SCHEMA.md) | Markdown (generated) | The fixed representation: every node type and relationship, what each connects, which ones carry impact, and how each use case (regression, automation, API testing, rules, Knowledge Fabric) walks it. |
+| [Meeting with Pawan](MEETING-PAWAN.md) | Markdown | Transcript of the use-case review, what TIA does against each ask, and what is still open. |
 
 > **Tip:** double-click any `.html` file in Windows Explorer, or open it in any browser. The as-built architecture and the demo walkthrough work offline.
 
@@ -32,9 +33,9 @@ flowchart TB
     E["1 · Entry points: server (FastAPI on uvicorn), worker, cli, migrate"]
     S["2 · API, web UI, agents: api, authapi (OIDC, SAML), rbac route table, mcp, kfadapter, reportpage"]
     O["3 · Orchestration and jobs: analysis_service, jobs (PostgreSQL queue), repos, upload"]
-    C["4 · Connectors: webhooks, githubapp, publish, scmhosts (GitLab, Bitbucket), ado, itsm, access"]
-    I["5 · Impact engine and tester views: impact, enrich, evidence, report, testscope, coverage, automation, testerpack, graphquery"]
-    G["6 · Graph and resolution: graph, resolve, graphstore, data"]
+    C["4 · Connectors: webhooks, githubapp, publish, scmhosts (GitLab, Bitbucket), ado, itsm, access, neo4jgraph (Neo4j mirror)"]
+    I["5 · Impact engine and tester views: impact, enrich, evidence, report, testscope, regression, configkeys, coverage, automation, testerpack, graphquery"]
+    G["6 · Graph and resolution: graph, resolve, graphstore, data, graphschema, graphstructure"]
     X["7 · Extraction: extract_python, extract_java, extract_data, extract_ui, lang/ (C#, Go, Kotlin, TypeScript)"]
     T["8 · Tenancy and storage: db (tenant-bound transactions), store, tenants, tenantconfig, identity, secretstore, kms"]
     R["9 · Rules: severity, policy, contracts, events, coordination"]

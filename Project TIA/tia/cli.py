@@ -68,7 +68,43 @@ def main(argv=None) -> int:
     cv.add_argument("--repo", action="append", default=[], metavar="NAME=PATH", help="repeatable")
     cv.add_argument("--test-case", metavar="FILE", help="assess one test case (JSON or YAML with title/steps/expected/entry_point) instead")
 
+    n4 = sub.add_parser("neo4j-sync", help="mirror the graph of these repositories (and their written test cases) into Neo4j; connection from "
+                                           "NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD (docs/NEO4J.md)")
+    n4.add_argument("--repo", action="append", default=[], metavar="NAME=PATH", help="repeatable; include all repos in scope")
+    n4.add_argument("--tenant-id", default=os.environ.get("TIA_TENANT_ID") or "local", help="tenant the mirror belongs to (default: local)")
+    n4.add_argument("--kf-links", metavar="CSV", help="optional ontology links: a CSV with columns tia (METHOD /route or TIA node id) and kf")
+    n4.add_argument("--kf-label", help="label of the KF ontology nodes the links point to (e.g. the system-extract label), required with --kf-links")
+    n4.add_argument("--kf-key", help="property that identifies those KF nodes, required with --kf-links")
+    n4.add_argument("--kf-rel", default="IMPLEMENTS", help="relationship type of the links (default IMPLEMENTS)")
+
     args = ap.parse_args(argv)
+    if args.cmd == "neo4j-sync":
+        import csv
+        from . import neo4jgraph
+        from .graph import build_graph
+        from .graphstore import graph_id, graph_inputs
+        from .impact import _extract
+        if args.kf_links and not (args.kf_label and args.kf_key):
+            raise SystemExit("--kf-links needs --kf-label and --kf-key: TIA does not guess the Knowledge Fabric schema")
+        try:
+            cfg = neo4jgraph.config_from_env()
+            if cfg is None:
+                raise neo4jgraph.Neo4jUnavailable("set NEO4J_URI, NEO4J_USER and NEO4J_PASSWORD")
+            drv = neo4jgraph.connect(cfg)
+        except neo4jgraph.Neo4jUnavailable as e:
+            raise SystemExit(f"Neo4j: {e}")
+        ex = {n: _extract(n, p, "HEAD", None, ()) for n, p in sorted(_repos(args.repo).items())}
+        g, gid = build_graph(ex), graph_id(graph_inputs(ex))
+        try:
+            out = neo4jgraph.sync(drv, neo4jgraph.project(g, args.tenant_id, gid, ex), args.tenant_id, gid, cfg["database"])
+            if args.kf_links:
+                with open(args.kf_links, encoding="utf-8-sig", newline="") as f:
+                    rows = [{"tia": r.get("tia"), "kf": r.get("kf")} for r in csv.DictReader(f)]
+                out["ontology_links"] = neo4jgraph.link_ontology(drv, args.tenant_id, rows, args.kf_label, args.kf_key, args.kf_rel, cfg["database"])
+        finally:
+            drv.close()
+        sys.stdout.buffer.write((to_json(out) + "\n").encode("utf-8"))
+        return 0
     if args.cmd in ("automation", "coverage"):
         from .automation import api_inventory, summarise_api, ui_inventory
         from .coverage import assess_test_case, coverage_report

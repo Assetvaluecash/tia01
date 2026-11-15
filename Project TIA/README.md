@@ -2,7 +2,7 @@
 
 Cross-repository change-impact analysis for a pull request, producing an evidence-backed
 **Change Impact Report** (JSON + PR-comment markdown). Built from
-`../revised/PRD.md` v2.1, `ARCHITECTURE.md` v1.1, `TECHNICAL-FRAMEWORK.md` v1.1.
+[docs/PRD.md](docs/PRD.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/TECHNICAL-FRAMEWORK.md](docs/TECHNICAL-FRAMEWORK.md).
 
 ## Quick start
 

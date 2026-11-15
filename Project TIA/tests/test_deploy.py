@@ -36,7 +36,9 @@ def test_the_image_runs_as_a_numeric_non_root_user_with_a_health_check():
 
 
 def test_the_image_installs_only_what_the_product_needs():
-    assert "git" in DOCKERFILE and "[api]" in DOCKERFILE and "--no-install-recommends" in DOCKERFILE
+    # the API and the Neo4j mirror (POST /api/v1/graph/neo4j-sync) are the product; test tools (the dev extra) are not
+    assert "git" in DOCKERFILE and "[api,neo4j]" in DOCKERFILE and "--no-install-recommends" in DOCKERFILE
+    assert "dev]" not in DOCKERFILE and ",dev" not in DOCKERFILE
 
 
 # ---- Compose -------------------------------------------------------------------------------------------------------------------------

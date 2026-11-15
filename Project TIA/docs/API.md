@@ -216,6 +216,10 @@ Request body:
 | `depth` | query | integer | no |
 | `limit` | query | integer | no |
 
+### `POST /api/v1/graph/neo4j-sync`
+
+**Needs:** `repo_write` (`engineer`, `release_manager`, `administrator`).  Mirror the current landscape graph (and the written test cases with the endpoints they test) into Neo4j for Knowledge Fabric and Cypher. The mirror holds every repository of the tenant, so only a caller who may read all of them can start it.
+
 ### `GET /api/v1/graph/query`
 
 **Needs:** `read` (`viewer`, `engineer`, `release_manager`, `auditor`, `administrator`).  A direct question to the code graph, with no change involved. question: consumers (who depends on the component), dependencies (what it depends on), tests (which tests exercise it), covers (what one test exercises). component: a node id, 'METHOD /path', or a function, test, service, table or topic name. The answer's status is ok, ambiguous (candidates are listed; nothing is guessed) or not_found. Only repositories the caller may read are searched.

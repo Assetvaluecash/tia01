@@ -15,6 +15,7 @@ import re
 from collections import deque
 from typing import Optional
 
+from .graphschema import STRUCTURE_TYPES
 from .models import normalize_path
 
 QUESTIONS = ("consumers", "dependencies", "tests", "covers")
@@ -57,7 +58,7 @@ def find(g, component: str, repository: Optional[str] = None, only_tests: bool =
     svc = [n for n, a in g.nodes.items() if a.get("type") == "service" and a.get("service") == c and ok(n)]
     if svc:
         return sorted(svc)
-    out = [n for n, a in g.nodes.items() if a.get("type") not in ("callsite", "service") and ok(n)
+    out = [n for n, a in g.nodes.items() if a.get("type") not in ("callsite", "service") and a.get("type") not in STRUCTURE_TYPES and ok(n)
            and (a.get("name") == c or str(a.get("name") or "").split(".")[-1] == c)]
     code = [n for n in out if g.nodes[n].get("type") != "test"]
     return sorted(out if only_tests or not code else code)      # a function and its same-named test: the function is meant, unless a test is asked for

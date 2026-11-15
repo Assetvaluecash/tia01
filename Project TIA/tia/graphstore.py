@@ -9,6 +9,7 @@ from typing import Optional
 
 from . import CONFIG_VERSION, EXTRACTOR_VERSION
 from .graph import Graph, build_graph
+from .graphschema import GRAPH_SCHEMA_VERSION
 from .models import RepoExtract
 from .store import Store
 
@@ -17,7 +18,7 @@ LANDSCAPE = "landscape"
 
 def graph_inputs(extracts: dict, strip: tuple = (), test_naming: bool = True) -> dict:
     return {"repos": {r: e.commit for r, e in sorted(extracts.items())}, "extractor": EXTRACTOR_VERSION,
-            "config": CONFIG_VERSION, "strip": list(strip), "test_naming": test_naming}
+            "config": CONFIG_VERSION, "strip": list(strip), "test_naming": test_naming, "schema": GRAPH_SCHEMA_VERSION}
 
 
 def graph_id(inputs: dict) -> str:

@@ -20,7 +20,7 @@ RUN apt-get update \
  && chown -R tia:tia /var/lib/tia
 COPY --from=build /dist/*.whl /tmp/
 RUN python -m pip install --no-cache-dir --upgrade pip "setuptools>=84.1" \
- && python -m pip install --no-cache-dir "$(ls /tmp/*.whl)[api]" && rm -f /tmp/*.whl
+ && python -m pip install --no-cache-dir "$(ls /tmp/*.whl)[api,neo4j]" && rm -f /tmp/*.whl
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

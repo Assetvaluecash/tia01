@@ -6,12 +6,15 @@ from dataclasses import asdict
 
 from .data import add_data_layer, add_sql_lineage
 from .extract_python import module_name
+from .graphschema import TRAVERSED_DST_TO_SRC, TRAVERSED_SRC_TO_DST
+from .graphstructure import add_structure
 from .models import CONTRACT_CONFIRMED, INFERRED, SOURCE_CONFIRMED, Edge, RepoExtract
 from .resolve import resolve_consumers
 
-# Relationships whose destination change affects the source (caller / subclass / reader).
-_IMPACT_DST = ("CALLS", "INHERITS", "USES_SCHEMA", "CONSUMES_API", "CONSUMES_EVENT", "ISSUES",
-               "TESTS", "MAPS_TO", "MAPS_COLUMN", "READS", "WRITES")
+# Relationships whose destination change affects the source (caller / subclass / reader), and the reverse: both from the graph schema
+# (tia.graphschema, docs/GRAPH-SCHEMA.md), which is the one place a relationship's impact direction is decided.
+_IMPACT_DST = TRAVERSED_DST_TO_SRC
+_IMPACT_SRC = TRAVERSED_SRC_TO_DST
 
 
 def _path_matches(template: str, concrete: str) -> bool:
@@ -37,13 +40,13 @@ class Graph:
     def add_edge(self, e: Edge):
         self.edges.append(e)
         # impact direction (who is affected when `key` changes)
-        if e.rel in ("HANDLES", "PUBLISHES"):  # handler change -> endpoint; producer change -> the topic it publishes to
+        if e.rel in _IMPACT_SRC:  # handler change -> endpoint; producer change -> the topic it publishes to
             self._impact[e.src].append((e.dst, e))
             self._deps[e.dst].append((e.src, e))
         elif e.rel in _IMPACT_DST:
             self._impact[e.dst].append((e.src, e))     # table/column -> entity -> function: who is affected by a data change
             self._deps[e.src].append((e.dst, e))
-        # EXPOSES / OWNED_BY / MIGRATES are not traversed
+        # EXPOSES / MIGRATES and the use-case structure (screens, fields, rules) are not traversed
 
     def impacted_by(self, nid: str):
         return sorted(self._impact.get(nid, []), key=lambda t: (t[0], t[1].rel))
@@ -200,4 +203,5 @@ def build_graph(extracts: dict[str, RepoExtract], strip_prefixes: tuple = (),
     g.unresolved, g.resolution_stats = unresolved, stats
     add_data_layer(g, extracts)
     add_sql_lineage(g, extracts)
+    add_structure(g, extracts)
     return g

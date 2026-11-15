@@ -27,7 +27,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import authapi, kfadapter
+from . import authapi, kfadapter, neo4jgraph
+from .airgap import AirGapError
 from .identity import current_principal
 from .graphview import LEVELS, build_view, impact_overlay, landscape_stats, restrict
 from .analysis_service import (coordination_status, execute, notify_owners, group_key, job_key, landscape_extracts, pr_event_group_key, pr_event_job_key,
@@ -399,7 +400,33 @@ def create_app(db: Database, tenant_id: str, workspace: str = ".tia-data/repos",
         if len(ex) == len(svc.list()):
             if store.set_head(LANDSCAPE, gid):
                 store.audit("graph_version_advanced", graph=gid, repos={r: e.commit for r, e in sorted(ex.items())})
+                if os.environ.get("TIA_NEO4J_AUTO_SYNC", "").strip().lower() in ("1", "true", "yes"):
+                    mirror_to_neo4j(g, gid, ex)                  # the Neo4j mirror follows the landscape; a failure is audited, never raised
         return g, gid
+
+    def mirror_to_neo4j(g, gid: str, ex: dict, raise_errors: bool = False) -> dict:
+        """Project this graph version into Neo4j (docs/NEO4J.md). PostgreSQL stays the record; Neo4j holds the tenant's current landscape."""
+        try:
+            cfg4j = neo4jgraph.config_from_env()
+            if cfg4j is None:
+                raise neo4jgraph.Neo4jUnavailable("Neo4j is not configured (set NEO4J_URI, NEO4J_USER and NEO4J_PASSWORD)")
+            drv = neo4jgraph.connect(cfg4j)
+            try:
+                out = neo4jgraph.sync(drv, neo4jgraph.project(g, store.tenant_id, gid, ex), store.tenant_id, gid, cfg4j["database"])
+            finally:
+                drv.close()
+        except (neo4jgraph.Neo4jUnavailable, AirGapError) as e:
+            store.audit("neo4j_sync_failed", graph=gid, reason=str(e)[:300])
+            if raise_errors:
+                raise HTTPException(503, str(e))
+            return {"error": str(e)}
+        except Exception as e:                                   # a Neo4j error must not break the API call that advanced the graph
+            store.audit("neo4j_sync_failed", graph=gid, reason=f"{type(e).__name__}: {str(e)[:280]}")
+            if raise_errors:
+                raise HTTPException(502, f"Neo4j sync failed: {type(e).__name__}: {str(e)[:280]}")
+            return {"error": str(e)}
+        store.audit("neo4j_synced", graph=gid, nodes=out["nodes"], relationships=out["relationships"], test_cases=out["test_cases"])
+        return out
 
     # ---- UI / meta ----------------------------------------------------------------------------------
     @app.get("/", include_in_schema=False)
@@ -891,6 +918,19 @@ def create_app(db: Database, tenant_id: str, workspace: str = ".tia-data/repos",
         if allowed is not None:                                  # which repositories exist, at which commit, with which errors: only for those readable
             out = {**out, "repositories": [x for x in out["repositories"] if x["repo"] in allowed]}
         return out
+
+    @app.post("/api/v1/graph/neo4j-sync")
+    def graph_neo4j_sync():
+        """Mirror the current landscape graph (and the written test cases with the endpoints they test) into Neo4j for Knowledge Fabric
+        and Cypher. The mirror holds every repository of the tenant, so only a caller who may read all of them can start it."""
+        allowed = readable(current_principal.get())
+        if allowed is not None and not {r.name for r in svc.list()} <= set(allowed):
+            raise HTTPException(403, "the Neo4j mirror holds every repository of the tenant: only a principal who may read all of them can sync it")
+        ex = landscape()
+        if not ex:
+            raise HTTPException(409, "no repositories are registered: nothing to mirror")
+        g, gid = current_graph(ex)
+        return mirror_to_neo4j(g, gid, ex, raise_errors=True)
 
     @app.get("/api/v1/graph/stats")
     def graph_stats(x_tia_readable_repos: Optional[str] = Header(None)):

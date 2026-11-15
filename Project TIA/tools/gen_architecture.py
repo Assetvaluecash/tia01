@@ -43,8 +43,9 @@ LAYERS = [
      ["analysis_service", "jobs", "repos", "upload", "relationships", "incidents", "temporal", "calibration"]),
     ("connectors", "Source-control and change-management connectors", "#c2410c",
      "Talks to the outside on the platform's behalf: webhooks in, pull-request comments and check runs out, repository permissions mirrored "
-     "from the host, ServiceNow change records. Nothing below this layer calls a git host or ITSM.",
-     ["webhooks", "github", "githubapp", "publish", "scmhosts", "ado", "itsm", "access"]),
+     "from the host, ServiceNow change records, and the Neo4j mirror of the graph for Knowledge Fabric. Nothing below this layer calls a git "
+     "host, ITSM or Neo4j.",
+     ["webhooks", "github", "githubapp", "publish", "scmhosts", "ado", "itsm", "access", "neo4jgraph"]),
     ("engine", "Impact engine and tester views", "#b3261e",
      "The deterministic core: diff the change, walk the graph within bounds, attach evidence, score with the rule table, and turn the result "
      "into the report and the tester views (test scope, regression test selection, configuration checks, coverage, automation inventory, "
@@ -53,8 +54,9 @@ LAYERS = [
       "testscope", "coverage", "automation", "testerpack", "graphquery", "graphview", "regression", "configkeys"]),
     ("graph", "Graph and identity resolution", "#0e7490",
      "Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the "
-     "resolution strategy and evidence on every edge. Versioned graphs are stored, never edited.",
-     ["graph", "resolve", "graphstore", "data"]),
+     "resolution strategy and evidence on every edge, plus the use-case structure (screens, elements, locators, requests, fields, rules). "
+     "`graphschema` fixes the node and relationship types (docs/GRAPH-SCHEMA.md). Versioned graphs are stored, never edited.",
+     ["graph", "resolve", "graphstore", "data", "graphschema", "graphstructure"]),
     ("extraction", "Extraction (language adapters)", "#a86400",
      "Reads code as bytes and parses it into facts (endpoints, call sites, functions, schemas, tables, tests, UI elements). Never imports, "
      "runs or builds customer code. Facts are cached per git blob, so an unchanged file is never parsed twice.",

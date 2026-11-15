@@ -1,6 +1,6 @@
 # TIA architecture as built
 
-The system as it is coded today: 100 Python modules (26,644 lines) in 10 layers, 29 PostgreSQL tables, three processes from one container image. Everything here is read from the code by `tools/gen_architecture.py`; the design written before the build is [ARCHITECTURE.md](ARCHITECTURE.md), and section 7 says where the two differ.
+The system as it is coded today: 103 Python modules (27,262 lines) in 10 layers, 29 PostgreSQL tables, three processes from one container image. Everything here is read from the code by `tools/gen_architecture.py`; the design written before the build is [ARCHITECTURE.md](ARCHITECTURE.md), and section 7 says where the two differ.
 
 **Status: Built.** The layer rule in section 2 is checked against the real imports on every test run (`tests/test_architecture_doc.py`), so this document cannot silently go out of date.
 
@@ -27,12 +27,12 @@ All three run the same image (`deploy/Dockerfile`, entry point `python -m`, non-
 
 | # | Layer | Modules | Lines | Responsible for |
 |---|---|---|---|---|
-| 1 | Entry points | 4 | 376 | The processes and commands that start everything: the API server, the queue worker, the command line and the schema migration. |
-| 2 | HTTP API, web UI and agent surfaces | 10 | 4,295 | Every way in: the REST API and web UI, sign-in, permissions on each request, the shareable report page, MCP for coding assistants and the Knowledge Fabric adapter. Requests are authenticated, classified and bound to one tenant here, before any work starts. |
+| 1 | Entry points | 4 | 412 | The processes and commands that start everything: the API server, the queue worker, the command line and the schema migration. |
+| 2 | HTTP API, web UI and agent surfaces | 10 | 4,335 | Every way in: the REST API and web UI, sign-in, permissions on each request, the shareable report page, MCP for coding assistants and the Knowledge Fabric adapter. Requests are authenticated, classified and bound to one tenant here, before any work starts. |
 | 3 | Orchestration, ingestion and jobs | 8 | 1,797 | Turns a request into work: resolves revisions, registers and syncs repositories, queues jobs and runs an analysis end to end, the same way for the UI, the API and a pull-request webhook. |
-| 4 | Source-control and change-management connectors | 8 | 1,549 | Talks to the outside on the platform's behalf: webhooks in, pull-request comments and check runs out, repository permissions mirrored from the host, ServiceNow change records. Nothing below this layer calls a git host or ITSM. |
-| 5 | Impact engine and tester views | 17 | 4,975 | The deterministic core: diff the change, walk the graph within bounds, attach evidence, score with the rule table, and turn the result into the report and the tester views (test scope, regression test selection, configuration checks, coverage, automation inventory, tester pack, graph questions). |
-| 6 | Graph and identity resolution | 4 | 791 | Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the resolution strategy and evidence on every edge. Versioned graphs are stored, never edited. |
+| 4 | Source-control and change-management connectors | 9 | 1,806 | Talks to the outside on the platform's behalf: webhooks in, pull-request comments and check runs out, repository permissions mirrored from the host, ServiceNow change records, and the Neo4j mirror of the graph for Knowledge Fabric. Nothing below this layer calls a git host, ITSM or Neo4j. |
+| 5 | Impact engine and tester views | 17 | 4,977 | The deterministic core: diff the change, walk the graph within bounds, attach evidence, score with the rule table, and turn the result into the report and the tester views (test scope, regression test selection, configuration checks, coverage, automation inventory, tester pack, graph questions). |
+| 6 | Graph and identity resolution | 6 | 1,074 | Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the resolution strategy and evidence on every edge, plus the use-case structure (screens, elements, locators, requests, fields, rules). `graphschema` fixes the node and relationship types (docs/GRAPH-SCHEMA.md). Versioned graphs are stored, never edited. |
 | 7 | Extraction (language adapters) | 21 | 7,137 | Reads code as bytes and parses it into facts (endpoints, call sites, functions, schemas, tables, tests, UI elements). Never imports, runs or builds customer code. Facts are cached per git blob, so an unchanged file is never parsed twice. |
 | 8 | Tenancy, identity and persistence | 11 | 2,984 | Everything stored, and who it belongs to: tenant-bound database transactions, the analysis and evidence store with its audit chain, tenants and their configuration, users, roles, secrets and customer keys, retention and backup. |
 | 9 | Rules (deterministic, versioned) | 5 | 861 | The rule tables and their evaluation: severity, release policy, contract and event compatibility, team coordination. They depend on nothing but the foundations. Tenants can override them through configuration; every finding records which rule version produced it. One module here also acts: `coordination` delivers the team notifications its rules call for (chat webhook or e-mail, through the air-gap and outbound-safety guards). |
@@ -44,12 +44,12 @@ How many module imports go from each layer (row) to each layer (column), counted
 
 | From \ to | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1. Entry points | · | 3 | 3 | 4 | 5 | 1 | · | 6 | · | 12 |
-| 2. HTTP API, web UI and agent surfaces | · | 9 | 7 | 7 | 11 | 2 | 2 | 15 | 1 | 11 |
+| 1. Entry points | · | 3 | 3 | 5 | 5 | 2 | · | 6 | · | 12 |
+| 2. HTTP API, web UI and agent surfaces | · | 9 | 7 | 8 | 11 | 2 | 2 | 15 | 1 | 12 |
 | 3. Orchestration, ingestion and jobs | 1 | · | 5 | 7 | 5 | 3 | 2 | 6 | 1 | 8 |
-| 4. Source-control and change-management connectors | · | · | · | 8 | 4 | · | · | 1 | 3 | 15 |
-| 5. Impact engine and tester views | · | · | · | · | 21 | 8 | 4 | 2 | 4 | 15 |
-| 6. Graph and identity resolution | · | · | · | · | · | 3 | 2 | 1 | · | 4 |
+| 4. Source-control and change-management connectors | · | · | · | 8 | 5 | 1 | · | 1 | 3 | 16 |
+| 5. Impact engine and tester views | · | · | · | · | 21 | 10 | 4 | 2 | 4 | 15 |
+| 6. Graph and identity resolution | · | · | · | · | · | 7 | 2 | 1 | · | 5 |
 | 7. Extraction | · | · | · | · | · | · | 29 | 1 | 2 | 19 |
 | 8. Tenancy, identity and persistence | · | · | 1 | · | · | · | · | 17 | 5 | 13 |
 | 9. Rules | · | · | · | · | · | · | · | · | 1 | 4 |
@@ -76,7 +76,7 @@ The processes and commands that start everything: the API server, the queue work
 |---|---|---|---|---|
 | [`server`](../tia/server.py) | 105 | Run the TIA server: python -m tia.server | 11 modules (layer 2: 2, layer 3: 1, layer 4: 2, layer 8: 2, layer 10: 4) | none |
 | [`worker`](../tia/worker.py) | 113 | Worker loop: claims jobs from the queue and runs handlers. | `analysis_service`, `credentials`, `db`, `health`, `jobs`, `metrics`, `obs`, `tracing`, `transport`, `webhooks` | `analysis_service` |
-| [`cli`](../tia/cli.py) | 121 | tia command line: analyze | `automation`, `coverage`, `db`, `github`, `graph`, `impact`, `report`, `scrub`, `store`, `testscope` | none |
+| [`cli`](../tia/cli.py) | 157 | tia command line: analyze | 12 modules (layer 4: 2, layer 5: 5, layer 6: 2, layer 8: 2, layer 10: 1) | none |
 | [`migrate`](../tia/migrate.py) | 37 | Apply database migrations and manage tenants | `credentials`, `db`, `transport` | none |
 
 ### 3.2 HTTP API, web UI and agent surfaces
@@ -85,7 +85,7 @@ Every way in: the REST API and web UI, sign-in, permissions on each request, the
 
 | Module | Lines | What it does | Uses | Used by |
 |---|---|---|---|---|
-| [`api`](../tia/api.py) | 1,983 | TIA HTTP API and web UI (TFD section 8). | 50 modules (layer 2: 7, layer 3: 7, layer 4: 7, layer 5: 11, layer 6: 2, layer 7: 2, layer 8: 8, layer 9: 1, layer 10: 5) | `server` |
+| [`api`](../tia/api.py) | 2,023 | TIA HTTP API and web UI (TFD section 8). | 52 modules (layer 2: 7, layer 3: 7, layer 4: 8, layer 5: 11, layer 6: 2, layer 7: 2, layer 8: 8, layer 9: 1, layer 10: 6) | `server` |
 | [`authapi`](../tia/authapi.py) | 618 | Authentication, authorisation and the sign-in/administration endpoints (PL-001, PL-002). | `identity`, `jwtverify`, `netsafe`, `oidc`, `rbac`, `saml` | `api`, `server` |
 | [`oidc`](../tia/oidc.py) | 133 | OpenID Connect (PL-001): browser sign-in by the authorization-code flow with PKCE, and bearer-token verification for API clients. | `identity`, `jwtverify`, `netsafe` | `authapi` |
 | [`saml`](../tia/saml.py) | 216 | SAML 2.0 service provider (PL-001): SP-initiated sign-in, HTTP-Redirect request, HTTP-POST response. | `identity` | `authapi` |
@@ -113,7 +113,7 @@ Turns a request into work: resolves revisions, registers and syncs repositories,
 
 ### 3.4 Source-control and change-management connectors
 
-Talks to the outside on the platform's behalf: webhooks in, pull-request comments and check runs out, repository permissions mirrored from the host, ServiceNow change records. Nothing below this layer calls a git host or ITSM.
+Talks to the outside on the platform's behalf: webhooks in, pull-request comments and check runs out, repository permissions mirrored from the host, ServiceNow change records, and the Neo4j mirror of the graph for Knowledge Fabric. Nothing below this layer calls a git host, ITSM or Neo4j.
 
 | Module | Lines | What it does | Uses | Used by |
 |---|---|---|---|---|
@@ -125,6 +125,7 @@ Talks to the outside on the platform's behalf: webhooks in, pull-request comment
 | [`ado`](../tia/ado.py) | 277 | Azure DevOps connector (UC1-06 service hooks, UC1-15 pull-request thread and status). | `airgap`, `credentials`, `metrics`, `policy`, `report` | `access`, `analysis_service`, `api`, `server` |
 | [`itsm`](../tia/itsm.py) | 133 | Change-management integration: ServiceNow first (PRD FR-038, AC-031). | `netsafe` | `analysis_service`, `api` |
 | [`access`](../tia/access.py) | 225 | Per-repository access control (PL-002, AC-016): which repositories a principal may read, mirrored from the source-code host. | `ado`, `github`, `identity`, `scmhosts`, `webhooks` | `analysis_service`, `api` |
+| [`neo4jgraph`](../tia/neo4jgraph.py) | 257 | TIA's graph mirrored into Neo4j (docs/MEETING-PAWAN.md step 0; docs/NEO4J.md). | `airgap`, `graphschema`, `regression` | `api`, `cli` |
 
 ### 3.5 Impact engine and tester views
 
@@ -145,21 +146,23 @@ The deterministic core: diff the change, walk the graph within bounds, attach ev
 | [`coverage`](../tia/coverage.py) | 343 | Technical coverage (UC-2, docs/CASE-STUDY.md): "are my test cases enough?" on the technical side. | `automation`, `graph`, `models`, `testscope` | `api`, `cli`, `regression`, `testerpack` |
 | [`automation`](../tia/automation.py) | 401 | Automation inventory (UC-3, docs/CASE-STUDY.md): what an automation tester needs from the code, without reading it. | `models` | `api`, `cli`, `coverage`, `testerpack` |
 | [`testerpack`](../tia/testerpack.py) | 101 | The tester pack of one analysis (docs/CASE-STUDY.md: one change, three answers from the same code facts). | `automation`, `coverage`, `testscope` | `api` |
-| [`graphquery`](../tia/graphquery.py) | 156 | Direct questions to the code graph, for testing agents and people (no change needed) | `models` | `api` |
-| [`graphview`](../tia/graphview.py) | 264 | Code / dependency graph views for the UI (PRD 9.2 supporting visualisation). | `graph`, `models`, `resolve` | `api` |
-| [`regression`](../tia/regression.py) | 150 | Regression test selection (docs/MEETING-PAWAN.md, use case 1): "out of your 10 test cases, these 4 must be regression-tested". | `coverage`, `testscope` | `impact`, `report` |
+| [`graphquery`](../tia/graphquery.py) | 157 | Direct questions to the code graph, for testing agents and people (no change needed) | `graphschema`, `models` | `api` |
+| [`graphview`](../tia/graphview.py) | 265 | Code / dependency graph views for the UI (PRD 9.2 supporting visualisation). | `graph`, `graphschema`, `models`, `resolve` | `api` |
+| [`regression`](../tia/regression.py) | 150 | Regression test selection (docs/MEETING-PAWAN.md, use case 1): "out of your 10 test cases, these 4 must be regression-tested". | `coverage`, `testscope` | `impact`, `neo4jgraph`, `report` |
 | [`configkeys`](../tia/configkeys.py) | 413 | Configuration and environment-variable changes (docs/MEETING-PAWAN.md, ask 1a: "he also added a new environment variable that other methods use - test these too"). | `exclude`, `gitutil` | `impact`, `report` |
 
 ### 3.6 Graph and identity resolution
 
-Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the resolution strategy and evidence on every edge. Versioned graphs are stored, never edited.
+Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the resolution strategy and evidence on every edge, plus the use-case structure (screens, elements, locators, requests, fields, rules). `graphschema` fixes the node and relationship types (docs/GRAPH-SCHEMA.md). Versioned graphs are stored, never edited.
 
 | Module | Lines | What it does | Uses | Used by |
 |---|---|---|---|---|
-| [`graph`](../tia/graph.py) | 203 | In-memory typed dependency graph built from repository extracts. | `data`, `extract_python`, `models`, `resolve` | `analysis_service`, `api`, `cli`, `coverage`, `enrich`, `graphstore`, `graphview`, `impact`, `relationships` |
+| [`graph`](../tia/graph.py) | 207 | In-memory typed dependency graph built from repository extracts. | `data`, `extract_python`, `graphschema`, `graphstructure`, `models`, `resolve` | `analysis_service`, `api`, `cli`, `coverage`, `enrich`, `graphstore`, `graphview`, `impact`, `relationships` |
 | [`resolve`](../tia/resolve.py) | 163 | Identity and relationship resolution (TFD 5.4 / 5.5). | `models` | `graph`, `graphview`, `impact` |
-| [`graphstore`](../tia/graphstore.py) | 48 | Persisted, versioned dependency graph (UC1-11). | `__init__`, `graph`, `models`, `store` | `analysis_service`, `api`, `impact` |
+| [`graphstore`](../tia/graphstore.py) | 49 | Persisted, versioned dependency graph (UC1-11). | `__init__`, `graph`, `graphschema`, `models`, `store` | `analysis_service`, `api`, `cli`, `impact` |
 | [`data`](../tia/data.py) | 377 | Data layer of the graph and data-change detection (FR-006, FR-006a, FR-015, AC-024). | `models` | `graph`, `impact` |
+| [`graphschema`](../tia/graphschema.py) | 126 | The TIA graph schema: every node type and relationship type, what each relationship connects, and which ones a change travels along. | none | `graph`, `graphquery`, `graphstore`, `graphstructure`, `graphview`, `neo4jgraph` |
+| [`graphstructure`](../tia/graphstructure.py) | 152 | Use-case structure in the graph (docs/GRAPH-SCHEMA.md): screens, elements and locators for automation; requests, responses and fields for API testing; business rules found in code. | `graphschema`, `models` | `graph` |
 
 ### 3.7 Extraction (language adapters)
 
@@ -225,13 +228,13 @@ Shared building blocks with no business logic: the data model, read-only git acc
 
 | Module | Lines | What it does | Uses | Used by |
 |---|---|---|---|---|
-| [`models`](../tia/models.py) | 267 | Canonical data structures (TECHNICAL-FRAMEWORK.md section 5). | none | 32 modules (layer 5: 9, layer 6: 4, layer 7: 15, layer 8: 2, layer 9: 2) |
+| [`models`](../tia/models.py) | 267 | Canonical data structures (TECHNICAL-FRAMEWORK.md section 5). | none | 33 modules (layer 5: 9, layer 6: 5, layer 7: 15, layer 8: 2, layer 9: 2) |
 | [`gitutil`](../tia/gitutil.py) | 136 | Read-only git access. | none | `analysis_service`, `api`, `configkeys`, `extraction`, `impact`, `repos` |
 | [`scrub`](../tia/scrub.py) | 179 | Keep secrets out of TIA's records and reports (PL-011; PRD 11.4 P0: "secrets, credentials ... must not be copied into graph records or reports"; TFD 11: credentials found in source files are never copied). | none | 11 modules (layer 1: 1, layer 2: 1, layer 3: 1, layer 5: 2, layer 7: 1, layer 8: 3, layer 10: 2) |
 | [`credentials`](../tia/credentials.py) | 248 | Where TIA's own secrets come from (PL-011): an approved secrets manager, never source code and never the database in clear. | `airgap` | 15 modules (layer 1: 3, layer 2: 1, layer 3: 1, layer 4: 3, layer 8: 5, layer 10: 2) |
 | [`transport`](../tia/transport.py) | 68 | Encryption in transit (PL-011): refuse insecure transport instead of discovering it later. | `airgap`, `credentials` | `migrate`, `server`, `tracing`, `webhooks`, `worker` |
 | [`netsafe`](../tia/netsafe.py) | 154 | Outbound fetches to addresses a tenant administrator controls (identity-provider discovery, JWKS, token endpoint). | `airgap` | `authapi`, `coordination`, `identity`, `itsm`, `oidc`, `repos` |
-| [`airgap`](../tia/airgap.py) | 62 | Air-gapped operation (PRD deployment option: no connection outside the customer's network). | none | 11 modules (layer 3: 1, layer 4: 4, layer 8: 1, layer 9: 1, layer 10: 4) |
+| [`airgap`](../tia/airgap.py) | 62 | Air-gapped operation (PRD deployment option: no connection outside the customer's network). | none | 13 modules (layer 2: 1, layer 3: 1, layer 4: 5, layer 8: 1, layer 9: 1, layer 10: 4) |
 | [`jwtverify`](../tia/jwtverify.py) | 186 | JSON Web Token verification for OpenID Connect (PL-001), on the `cryptography` package, no other dependency. | none | `authapi`, `githubapp`, `identity`, `oidc` |
 | [`metrics`](../tia/metrics.py) | 227 | Platform and analysis metrics in the Prometheus text exposition format (PL-007, TFD 14). | none | `ado`, `api`, `github`, `health`, `publish`, `repos`, `scmhosts`, `telemetry`, `tracing`, `worker` |
 | [`telemetry`](../tia/telemetry.py) | 53 | Turn finished work into metrics: what an analysis and an extraction produced. | `metrics` | `extraction`, `impact` |

@@ -17,7 +17,7 @@ Status words: **Met** = the criterion holds on evidence produced here. **Met (si
 | Requirements closed 2026-11-12 | Met | FR-004 Django REST routes (`test_django_routes`), FR-007 builds, rollbacks, failure signatures (`test_operations_entities`), PL-003 webhook tenant routing, FR-039/PL-002 Azure DevOps mirror |
 | PRD v3.2 tester outputs | Met | AC-042 (`test_testscope`), AC-043 and AC-044 (`test_tester_views`), plus real-Chrome checks of the tester views |
 
-Whole suite on 2026-11-06: 1168 passed, 0 failed, on real PostgreSQL 16 and real git (summary.md).
+Whole suite on 2026-11-06: 1168 passed, 0 failed, on real PostgreSQL 16 and real git.
 
 ## Accuracy — section 15.3 targets on the reference landscape
 

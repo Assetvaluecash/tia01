@@ -9,6 +9,11 @@ validated against the expected workload"; ARCHITECTURE.md: "dedicated graph stor
 by the analysis worker.** Do not introduce a graph database for Releases 1–4. Revisit when a single tenant's landscape passes about **1 million
 graph nodes**, or when a feature needs ad-hoc graph queries across graph versions that the worker cannot answer from one loaded version.
 
+**Amended 15 Nov 2026: a Neo4j mirror for Knowledge Fabric.** TIA is being integrated into Knowledge Fabric 2.5, which runs on Neo4j and
+holds the business ontology (see [MEETING-PAWAN.md](MEETING-PAWAN.md)). That reason is integration, not performance, so the decision below
+stands: PostgreSQL remains the store the engine builds, versions and walks. Each tenant's current graph version is additionally
+**mirrored** into Neo4j ([NEO4J.md](NEO4J.md)), where KF agents can query it and TIA nodes can be linked to the ontology.
+
 ## Why
 
 1. **The workload is not a graph-database workload.** An analysis reads one graph version (pinned in its evidence snapshot), seeds it with the

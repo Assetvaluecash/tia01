@@ -32,26 +32,31 @@ Checked against the code in `Project TIA/tia/` on 15 Nov 2026.
 
 | # | Ask | Status | What exists / what is missing |
 |---|-----|--------|-------------------------------|
-| 0 | Fixed, documented representation | **Partly** | The representation is fixed and documented ([ARCHITECTURE-AS-BUILT.md](ARCHITECTURE-AS-BUILT.md), [GRAPH-STORE.md](GRAPH-STORE.md)). Node types: service, function, type, schema, endpoint, callsite, test, topic, listener, event_schema, data. |
-| 0 | Stored in Neo4j (KF 2.5) | **No** | The graph lives in **PostgreSQL** as a versioned JSON graph ([graphstore.py](../tia/graphstore.py)). The code has no Neo4j driver, Cypher or Bolt anywhere. |
-| 0a | Linked to the KF ontology (rules, system extracts) | **No** | [kfadapter.py](../tia/kfadapter.py) only *answers* KF agents with a finished report in KF's `QueryResponse` shape. It writes nothing into KF's graph, and nothing links an endpoint to a system extract or a code rule to a KF rule. |
-| 0b | Test cases linked to sub-functions | **No** | Written test cases ([testcases.py](../tia/testcases.py), `testcases/*.csv\|yaml\|json` in a repo) are matched to endpoints by text. They are not graph nodes, and no sub-function exists. |
+| 0 | Fixed, documented representation | **Built 15 Nov 2026** | [graphschema.py](../tia/graphschema.py) fixes every node and relationship type and which ones carry impact. [GRAPH-SCHEMA.md](GRAPH-SCHEMA.md) is generated from it, and a test fails if any demo graph breaks it. |
+| 0 | Stored in Neo4j (KF 2.5) | **Built 15 Nov 2026** (tested against Neo4j 5.26.4) | [neo4jgraph.py](../tia/neo4jgraph.py) mirrors each tenant's current graph version into Neo4j ([NEO4J.md](NEO4J.md)): automatically, through `POST /api/v1/graph/neo4j-sync`, or with `tia neo4j-sync`. PostgreSQL stays the record ([GRAPH-STORE.md](GRAPH-STORE.md)). Not yet run against KF's real 2.5 instance. |
+| 0a | Linked to the KF ontology (rules, system extracts) | **Mechanism built; mapping needs KF** | `link_ontology` / `--kf-links` write `IMPLEMENTS` links from TIA endpoints or nodes to KF nodes, from an explicit mapping with KF's label and key. Endpoints, rules (by expression) and screens can be linked. KF's real labels, keys and the mapping itself must come from the KF team; nothing is guessed. |
+| 0b | Test cases linked to sub-functions | **Partly** | Written test cases are now graph nodes in Neo4j (`TiaTestCase -[:COVERS]-> TiaEndpoint`), and the Cypher regression query matches the engine on every demo branch. The link to sub-functions waits on the KF schema. |
 | 1 | Main vs feature branch blast radius | **Yes** | `--base` / `--head`, merge-base, PR webhooks ([analysis_service.py](../tia/analysis_service.py)). The test scope lists every entry point the change reaches, with why and the change effect ([testscope.py](../tia/testscope.py)). |
 | 1 | "These 4 of your 10 functional test cases" | **Built 15 Nov 2026** (simulated) | [regression.py](../tia/regression.py): every analysis reports *Regression-test N of your M test case(s)*. Each written case is selected (with the reached entry point, the change effect and why), not affected, unmapped (review by hand) or new in this change. The report, PR comment, report page, web UI, MCP `get_test_scope` and KF `QueryResponse` carry it. Demo: `tools/demo.py --landscape regression` (4 / 3 / 2 of 10). Matching is by the entry point or screen named in the case; matching through KF sub-functions waits on step 0. |
 | 1a | Explained in the tester's terms | **Built 15 Nov 2026** (simulated) | [configkeys.py](../tia/configkeys.py): a configuration key changed in `.env`, `.properties`, YAML, INI, TOML or JSON reaches the functions that read it. A newly read environment variable is reported with where it is (not) set and which other functions read it. Values are never shown. |
-| 2 | Application > Screen > Element > Locator in the graph | **Data yes, graph no** | [extract_ui.py](../tia/extract_ui.py) extracts pages, elements, and locators (test id / id / name / CSS / XPath / Playwright), mandatory flags and dropdown values ([automation.py](../tia/automation.py)). These are **computed report views**, not stored nodes, and there is no Application node. Nothing generates a script from a screen A to screen B flow. |
-| 3 | API > Method > Request / Response / Definitions in the graph | **Data partly, graph partly** | Endpoint and schema nodes exist. Request fields with their rules (length, pattern, enum), valid and invalid values, a test matrix and error statuses are computed by [automation.py](../tia/automation.py), again as a view and not as nodes. **Expected-response examples** are not captured. Pulse cannot call an API from TIA's data. |
+| 2 | Application > Screen > Element > Locator in the graph | **Built 15 Nov 2026** | Application, Screen, Element and Locator nodes ([graphstructure.py](../tia/graphstructure.py)). An element carries its label, mandatory flag, limits and dropdown values; its locators carry CSS, XPath and Playwright forms, whether each is unique, and which to use. Screen `CALLS_API` endpoint. Also in Neo4j. Still missing: the order of screens in a flow, and a generator that writes the script. |
+| 3 | API > Method > Request / Response / Definitions in the graph | **Built 15 Nov 2026**, except examples | Endpoint `ACCEPTS` Request, Endpoint `RETURNS` Response, and each `HAS_FIELD` Field with its place (path, query, header, body), type, required flag, allowed values and limits. The response carries success status, error statuses and shape. **Expected-response examples** are still not captured. |
+| — | Business rules as nodes | **Built 15 Nov 2026** | Function `APPLIES_RULE` Rule (the condition and the fields it tests). A rule can be linked to a KF rule by its expression through the mapping. |
 | 4 | Higher-level view: execution flow, entities, controllers/models | **Partly** | [graphview.py](../tia/graphview.py) gives service and endpoint levels, and [structure.py](../tia/structure.py) gives folder-based layers (controllers / services / models). There is **no execution-flow view** (entry point > controller > service > repository > table) and no entity/model summary. |
 
-**In short:** the analysis behind use case 1 (blast radius from a branch diff) works. What Pawan actually asked for in this meeting
-does not exist yet: TIA's graph **in KF's Neo4j, connected to the KF ontology**, with **test cases reached through sub-functions**. The
-automation and API data is extracted but is not graph structure.
+**In short (updated 15 Nov 2026):** the representation is fixed, written down and enforced ([GRAPH-SCHEMA.md](GRAPH-SCHEMA.md)). It
+covers use case 1, automation, API testing and business rules, and it is mirrored into Neo4j. What is still open needs the KF team:
+- the real ontology labels and keys;
+- the mapping of TIA nodes to KF nodes;
+- a run against KF's own 2.5 instance.
+
+Open on TIA's side: expected-response examples, the order of screens in a flow, and the execution-flow view (item 4).
 
 ---
 
 ## 3. What we must do, in Pawan's order
 
-### Step 0: storage and connection (do first)
+### Step 0: storage and connection (items 1-3 built 15 Nov 2026; item 4 is still with the KF team)
 1. **Write a Neo4j export/sync** (`tia/kfgraph.py`) that writes TIA's graph version into the KF 2.5 Neo4j instance. Use TIA labels
    (`:TIA_Service`, `:TIA_Endpoint`, `:TIA_Function`, `:TIA_Test`, `:TIA_Schema`), keep the version id on every node, and use idempotent `MERGE`.
    The bolt URI and credentials go through the existing secret store. Keep PostgreSQL as TIA's system of record, or decide with Pawan
@@ -75,11 +80,11 @@ automation and API data is extracted but is not graph structure.
 7. **Detect config and env-var changes** (new or changed environment variables and config keys, and the code that reads them), so the
    "he also added an env variable" case is reported.
 
-### Use case 2: automation (after use case 1)
+### Use case 2: automation (item 8: the graph part was built 15 Nov 2026; script generation is not)
 8. **Store UI as graph nodes:** `Application > Screen > Element > Locator` from what `extract_ui.py` already extracts. Add an agent or
    retrieval path that, given "screen A to screen B", returns the screens, elements and best locators for script generation.
 
-### Use case 3: API (after use case 2)
+### Use case 3: API (item 9 built 15 Nov 2026, except expected-response examples)
 9. **Store API structure as nodes:** `Endpoint > Method > RequestBody > Field (definition: type, length, pattern, enum, mandatory)` and
    `Response > Field`. Capture **example / expected responses** from OpenAPI `example(s)` and from tests. Expose them so Pulse
    can build and send a request.

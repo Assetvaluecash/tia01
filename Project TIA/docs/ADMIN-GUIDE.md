@@ -508,6 +508,8 @@ are installed as Python packages that declare a `tia.adapters` entry point; inst
 | `TIA_RATE_LIMIT`, `TIA_RATE_LIMIT_PER_MINUTE`, `TIA_RATE_LIMIT_TENANT_PER_MINUTE`, `TIA_RATE_LIMIT_ANON_PER_MINUTE`, `TIA_RATE_LIMIT_REPLICAS` | request rate limits (section 5) |
 | `TIA_TRUST_PROXY` | take the client address from `X-Forwarded-For` (only behind your gateway) |
 | `TIA_AIRGAPPED`, `TIA_AIRGAP_ALLOWED_HOSTS` | refuse every outbound connection except to the listed internal hosts (section 18c) |
+| `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `NEO4J_DATABASE` | the Neo4j database the graph is mirrored into for Knowledge Fabric ([NEO4J.md](NEO4J.md)); no default password |
+| `TIA_NEO4J_AUTO_SYNC` | `true`: mirror the landscape graph into Neo4j every time it advances to a new version |
 | `TIA_REGION` | this deployment's hosting region (section 18a) |
 | `TIA_BACKUP_KEY` (or `TIA_BACKUP_KEY_FILE`) | key for encrypted tenant backups (section 18a) |
 | `TIA_AWS_ACCESS_KEY_ID`, `TIA_AWS_SECRET_ACCESS_KEY`, `TIA_AWS_SESSION_TOKEN`, `TIA_AWS_KMS_ENDPOINT` | AWS KMS for customer-managed keys |

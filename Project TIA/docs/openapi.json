@@ -2827,6 +2827,24 @@
     "x-tia-permission": "read"
    }
   },
+  "/api/v1/graph/neo4j-sync": {
+   "post": {
+    "description": "Mirror the current landscape graph (and the written test cases with the endpoints they test) into Neo4j for Knowledge Fabric\nand Cypher. The mirror holds every repository of the tenant, so only a caller who may read all of them can start it.",
+    "operationId": "graph_neo4j_sync_api_v1_graph_neo4j_sync_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Graph Neo4J Sync",
+    "x-tia-permission": "repo_write"
+   }
+  },
   "/api/v1/graph/query": {
    "get": {
     "description": "A direct question to the code graph, with no change involved. question: consumers (who depends on the component),\ndependencies (what it depends on), tests (which tests exercise it), covers (what one test exercises). component: a node id,\n'METHOD /path', or a function, test, service, table or topic name. The answer's status is ok, ambiguous (candidates are\nlisted; nothing is guessed) or not_found. Only repositories the caller may read are searched.",

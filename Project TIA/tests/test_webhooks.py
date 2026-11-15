@@ -1,5 +1,5 @@
 """UC1-05 (receiver) + UC1-14 (comment upsert wiring), verified against real PostgreSQL, real git remotes and a local
-fake of the GitHub REST API. Live github.com behaviour is verified separately (see summary.md)."""
+fake of the GitHub REST API. Live github.com behaviour is verified separately."""
 import hashlib
 import hmac
 import json

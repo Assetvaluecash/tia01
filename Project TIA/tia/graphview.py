@@ -13,6 +13,7 @@ from collections import defaultdict, deque
 from typing import Optional
 
 from .graph import build_graph
+from .graphschema import STRUCTURE_TYPES
 from .models import RepoExtract
 from .resolve import merged_service_map
 
@@ -115,8 +116,8 @@ def build_view(extracts: dict, level: str = "service", repos: Optional[list] = N
                 continue
             if level == "endpoint" and t not in ("endpoint", "schema"):
                 continue
-            if t == "column" and not (q or focus):
-                continue                    # dozens per repository: shown when the viewer searches or focuses, not in the overview
+            if (t == "column" or t in STRUCTURE_TYPES) and not (q or focus):
+                continue                    # dozens per repository (columns, screens, fields, locators, rules): shown when searched or focused
             add_node(nid, type=t, label=_label(nid, n), repo=n["repo"], service=n["service"], file=n.get("file"),
                      line=n.get("line"), unresolved=nid in unresolved, **({"kind": n["kind"]} if n.get("kind") else {}))
         for e in g.edges:

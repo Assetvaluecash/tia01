@@ -1,5 +1,5 @@
 """UC1-14: advisory check run + the product endpoint that posts the PR comment, against real PostgreSQL, real git remotes and a local
-fake of the GitHub REST API (check runs need a GitHub App on github.com: see summary.md for what is live-verified)."""
+fake of the GitHub REST API (check runs need a GitHub App on github.com)."""
 import json
 import re
 from dataclasses import replace
