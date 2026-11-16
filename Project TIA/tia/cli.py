@@ -77,7 +77,47 @@ def main(argv=None) -> int:
     n4.add_argument("--kf-key", help="property that identifies those KF nodes, required with --kf-links")
     n4.add_argument("--kf-rel", default="IMPLEMENTS", help="relationship type of the links (default IMPLEMENTS)")
 
+    fl = sub.add_parser("flows", help="execution flow of entry points (handler, code, services called, data, rules) and each service's design")
+    fl.add_argument("--repo", action="append", default=[], metavar="NAME=PATH", help="repeatable; include all repos in scope")
+    fl.add_argument("--endpoint", help="one entry point, written METHOD /route")
+    fl.add_argument("--format", choices=["text", "json"], default="text")
+
+    sc = sub.add_parser("script", help="a Playwright test for a user flow from one screen to another")
+    sc.add_argument("--repo", action="append", default=[], metavar="NAME=PATH", help="repeatable; include the front end and the APIs it calls")
+    sc.add_argument("--app", required=True, help="the repository name of the front end")
+    sc.add_argument("--from", dest="start", required=True, help="route of the first screen, e.g. /login")
+    sc.add_argument("--to", dest="end", required=True, help="route of the last screen")
+    sc.add_argument("--base-url", default="http://localhost:3000")
+    sc.add_argument("--out", help="write the script to this file (default: print it)")
+
     args = ap.parse_args(argv)
+    if args.cmd in ("flows", "script"):
+        from .graph import build_graph
+        from .impact import _extract
+        ex = {n: _extract(n, p, "HEAD", None, ()) for n, p in sorted(_repos(args.repo).items())}
+        g = build_graph(ex)
+        if args.cmd == "flows":
+            from .flows import design, flows, render
+            rows = flows(g, args.endpoint)
+            if args.endpoint and not rows:
+                raise SystemExit(f"no analysed entry point '{args.endpoint}' (write it as METHOD /route)")
+            text = "\n\n".join(render(f) for f in rows) if args.format == "text" else to_json({"flows": rows, "design": design(g)})
+            sys.stdout.buffer.write((text + "\n").encode("utf-8"))
+            return 0
+        from .scripts import generate
+        if args.app not in ex:
+            raise SystemExit(f"--app {args.app} is not one of the --repo names")
+        out = generate(g, ex, args.app, args.start, args.end, args.base_url)
+        if out.get("error"):
+            raise SystemExit(f"{out['error']}. Screens known: {', '.join(out['screens_known'])}. {out['note']}")
+        if args.out:
+            Path(args.out).write_text(out["script"], encoding="utf-8")
+            print(f"wrote {args.out}; {len(out['unknowns'])} point(s) to review", file=sys.stderr)
+        else:
+            sys.stdout.buffer.write((out["script"] + "\n").encode("utf-8"))
+        for u in out["unknowns"]:
+            print(f"TODO {u['screen']}: {u['what']} - {u['detail']}", file=sys.stderr)
+        return 0
     if args.cmd == "neo4j-sync":
         import csv
         from . import neo4jgraph

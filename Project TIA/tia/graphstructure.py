@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from .graphschema import LIMITS
+from .models import normalize_path
 from .models import INFERRED, SOURCE_CONFIRMED, Edge
 
 
@@ -71,6 +72,11 @@ def add_structure(g, extracts: dict):
 def _api(g, repo, ex, ev):
     schemas = {s.name: s for s in ex.schemas}
     enums = ex.enums or {}
+    examples: dict = {}
+    # every collection is walked in a fixed order: the same inputs must build the same graph, whether extracted in full or incrementally
+    for x in sorted(ex.api_examples, key=lambda x: (x["method"], x["norm_path"], x.get("status") or 0, x["source"], x.get("file") or "",
+                                                    x.get("line") or 0, json.dumps(x.get("body"), sort_keys=True, default=str))):
+        examples.setdefault((x["method"], x["norm_path"]), []).append(x)
 
     def field(owner: str, place: str, name: str, spec: dict):
         fid = f"{owner}:{place}:{name}"
@@ -82,18 +88,18 @@ def _api(g, repo, ex, ev):
                    **({"allowed_values": allowed} if allowed else {}), **_limits(spec.get("constraints") or {}))
         return fid
 
-    for e in ex.endpoints:
+    for e in sorted(ex.endpoints, key=lambda e: e.id):
         rid, sid = f"{e.id}#request", f"{e.id}#response"
         body = next((schemas[n] for n in e.request_schemas if n in schemas), None)
         g.add_node(rid, type="request", repo=repo, service=ex.service, name=f"{e.method} {e.path} request", file=e.file, line=e.line,
                    body_schema=body.name if body else None)
         g.add_edge(Edge(e.id, "ACCEPTS", rid, SOURCE_CONFIRMED, "extract", None, ev(e.file, e.line)))
-        for p in e.params:
+        for p in sorted(e.params, key=lambda p: (p.get("in") or "query", p["name"])):
             fid = field(rid, p.get("in") or "query", p["name"], {"type": p.get("type"), "required": p.get("required"), "multi": p.get("multi"),
                                                                  "constraints": p.get("constraints") or {}})
             g.add_edge(Edge(rid, "HAS_FIELD", fid, SOURCE_CONFIRMED, "extract", None, ev(e.file, e.line)))
         if body:
-            for name, spec in body.fields.items():
+            for name, spec in sorted(body.fields.items()):
                 fid = field(rid, "body", name, spec)
                 g.add_edge(Edge(rid, "HAS_FIELD", fid, SOURCE_CONFIRMED, "extract", None, ev(body.file, body.line)))
         resp = schemas.get(e.response_schema or "")
@@ -102,9 +108,16 @@ def _api(g, repo, ex, ev):
                    error_statuses=_statuses(ex, e.handler_id) if e.source == "code" else [])
         g.add_edge(Edge(e.id, "RETURNS", sid, SOURCE_CONFIRMED, "extract", None, ev(e.file, e.line)))
         if resp:
-            for name, spec in resp.fields.items():
+            for name, spec in sorted(resp.fields.items()):
                 fid = field(sid, "body", name, spec)
                 g.add_edge(Edge(sid, "HAS_FIELD", fid, SOURCE_CONFIRMED, "extract", None, ev(resp.file, resp.line)))
+        for n, x in enumerate(examples.get((e.method, e.norm_path), []), 1):
+            xid = f"{sid}:example{n}"
+            g.add_node(xid, type="example", repo=repo, service=ex.service, file=x.get("file"), line=x.get("line"),
+                       name=f"{x.get('status') or ''} {x['source']} example".strip(), status=x.get("status"), source=x["source"],
+                       partial=bool(x.get("partial")), body_json=json.dumps(x.get("body"), sort_keys=True, default=str),
+                       **({"test": x["test"]} if x.get("test") else {}))
+            g.add_edge(Edge(sid, "HAS_EXAMPLE", xid, SOURCE_CONFIRMED, f"{x['source']}-example", None, ev(x.get("file"), x.get("line"))))
 
 
 def _ui(g, repo, ex, ev, endpoints_by_key):
@@ -114,7 +127,8 @@ def _ui(g, repo, ex, ev, endpoints_by_key):
     g.add_node(app, type="application", repo=repo, service=ex.service, name=ex.service,
                frameworks=sorted({p.get("framework") for p in ex.ui_pages if p.get("framework")}))
     g.add_edge(Edge(f"svc:{ex.service}", "HAS_APPLICATION", app, SOURCE_CONFIRMED, "extract", None, ev(None, None)))
-    for p in ex.ui_pages:
+    screens = {normalize_path(p["route"]): f"{repo}:screen:{p['page']}" for p in ex.ui_pages if p.get("route")}
+    for p in sorted(ex.ui_pages, key=lambda p: (p.get("route") or "~", p["page"])):
         sid = f"{repo}:screen:{p['page']}"
         file = (p.get("files") or [None])[0]
         g.add_node(sid, type="screen", repo=repo, service=ex.service, name=p["page"], route=p.get("route"), component=p.get("component"),
@@ -136,6 +150,10 @@ def _ui(g, repo, ex, ev, endpoints_by_key):
                            xpath=loc.get("xpath"), playwright=loc.get("playwright"), unique=bool(loc.get("unique")),
                            best=loc.get("strategy") == best.get("strategy") and loc.get("xpath") == best.get("xpath"), rank=rank)
                 g.add_edge(Edge(eid, "LOCATED_BY", lid, SOURCE_CONFIRMED, "extract", None, ev(file, el.get("line"))))
+        for nav in p.get("navigations", []):
+            dest = screens.get(normalize_path(nav["to"]))
+            if dest and dest != sid:
+                g.add_edge(Edge(sid, "NAVIGATES_TO", dest, SOURCE_CONFIRMED, f"ui-{nav['via']}", None, ev(file, nav.get("line"))))
         for c in p.get("api_calls", []):
             hits = endpoints_by_key.get((c.get("method"), c.get("norm_path")), [])
             for hit in hits:
@@ -144,8 +162,8 @@ def _ui(g, repo, ex, ev, endpoints_by_key):
 
 
 def _rules(g, repo, ex, ev):
-    for f in ex.functions:
-        for n, flt in enumerate(f.filters, 1):
+    for f in sorted(ex.functions, key=lambda f: f.id):
+        for n, flt in enumerate(sorted(f.filters, key=lambda x: (x.get("line") or 0, x["expr"])), 1):
             rid = f"{f.id}#rule{n}"
             g.add_node(rid, type="rule", repo=repo, service=ex.service, name=flt["expr"], expr=flt["expr"], fields=list(flt.get("fields") or []),
                        function=f.qualname, file=f.file, line=flt.get("line"))

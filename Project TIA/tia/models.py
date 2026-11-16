@@ -209,6 +209,7 @@ class RepoExtract:
     ui_facts: list = field(default_factory=list)           # per-file front-end facts (templates, components, routes): assembly input
     ui_pages: list = field(default_factory=list)           # assembled pages: elements, locators, mandatory flags, options, API calls
     manual_tests: list = field(default_factory=list)       # written test cases from testcases/*.csv|yaml|json
+    api_examples: list = field(default_factory=list)       # example / expected responses: [{method, norm_path, status, body, partial, source, file, line}]
     events: list = field(default_factory=list)             # [{kind: produces|consumes, topic, function_id, file, line, via, declared?}]
     event_schemas: list = field(default_factory=list)      # [{id, name, format: avro|json-schema, fields, file, line, topic, topic_source}]
     sql_access: list = field(default_factory=list)         # SQL in code (FR-041): [{function_id, op: read|write|call, target, file, line, sql, columns}]
@@ -243,7 +244,7 @@ class RepoExtract:
             strip_prefixes=d.get("strip_prefixes", []), exclude_patterns=d.get("exclude_patterns", []),
             context_path=d.get("context_path"),
             external_context_paths=d.get("external_context_paths", {}), enums=d.get("enums", {}),
-            ui_facts=d.get("ui_facts", []), ui_pages=d.get("ui_pages", []), manual_tests=d.get("manual_tests", []),
+            ui_facts=d.get("ui_facts", []), ui_pages=d.get("ui_pages", []), manual_tests=d.get("manual_tests", []), api_examples=d.get("api_examples", []),
             events=d.get("events", []), event_schemas=d.get("event_schemas", []),
             sql_access=d.get("sql_access", []), procedures=d.get("procedures", []),
             types=[TypeDecl(**t) for t in d.get("types", [])],

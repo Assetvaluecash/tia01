@@ -11,7 +11,7 @@ generated from it (python tools/gen_graph_schema.py), so the code, the check and
 """
 from __future__ import annotations
 
-GRAPH_SCHEMA_VERSION = "gs-2"        # part of every graph version's identity (tia.graphstore): a schema change builds new versions
+GRAPH_SCHEMA_VERSION = "gs-3"        # part of every graph version's identity (tia.graphstore): a schema change builds new versions
 LIMITS = ("max_length", "min_length", "minimum", "maximum", "exclusive_minimum", "exclusive_maximum", "pattern", "format")
 
 # group: what the node belongs to, for the document. detail: many per screen/endpoint; overview views leave them out unless asked.
@@ -24,7 +24,8 @@ NODE_TYPES = {
     "function": {"group": "code", "description": "A function or method (qualified name).", "properties": ["name", "repo", "service", "file", "line"]},
     "type": {"group": "code", "description": "A class, interface or record (for inheritance).", "properties": ["name", "kind", "repo", "file", "line"]},
     "schema": {"group": "code", "description": "A request or response body type declared in code or OpenAPI.", "properties": ["name", "repo", "file", "line"]},
-    "callsite": {"group": "code", "description": "An outbound HTTP call in code (the consumer side of CONSUMES_API).", "properties": ["repo", "file", "line"]},
+    "callsite": {"group": "code", "description": "An outbound HTTP call in code (the consumer side of CONSUMES_API).", "properties": ["repo", "file", "line"],
+                 "optional": ["client_pkg", "client_attr"]},
     "test": {"group": "code", "description": "An automated test in a repository.", "properties": ["name", "repo", "file", "line"]},
     "contract_ref": {"group": "code", "description": "A consumer contract declared in a repository whose code does not show the call.",
                      "properties": ["repo", "service", "file"]},
@@ -63,6 +64,10 @@ NODE_TYPES = {
                             "allowed values and limits.",
               "properties": ["name", "in", "field_type", "required", "multi", "nullable", "repo", "service"],
               "optional": ["allowed_values", *LIMITS]},
+    "example": {"group": "api", "detail": True,
+                "description": "An example or expected response: from the OpenAPI specification, or what a test asserts about the response "
+                               "(partial when the test checks only some fields). The body is JSON text.",
+                "properties": ["name", "status", "body_json", "partial", "source", "repo", "service", "file", "line"], "optional": ["test"]},
     # ---- business rules --------------------------------------------------------------------------------------------------------------
     "rule": {"group": "rules", "detail": True,
              "description": "A business rule found in code: a condition a function applies to the data it handles (\"disputed payments "
@@ -94,12 +99,15 @@ EDGE_TYPES = {
     "HAS_SCREEN": {"from": {"application"}, "to": {"screen"}, "impact": None, "description": "The application has the screen."},
     "HAS_ELEMENT": {"from": {"screen"}, "to": {"element"}, "impact": None, "description": "The screen shows the element."},
     "LOCATED_BY": {"from": {"element"}, "to": {"locator"}, "impact": None, "description": "One way to find the element (best first: rank 1)."},
+    "NAVIGATES_TO": {"from": {"screen"}, "to": {"screen"}, "impact": None,
+                     "description": "The screen sends the user to another screen (a link, or a navigation call in its code)."},
     "CALLS_API": {"from": {"screen"}, "to": {"endpoint"}, "impact": None,
                   "description": "The screen calls the endpoint (matched by method and path; inferred when more than one endpoint matches)."},
     # API testing
     "ACCEPTS": {"from": {"endpoint"}, "to": {"request"}, "impact": None, "description": "The endpoint's request."},
     "RETURNS": {"from": {"endpoint"}, "to": {"response"}, "impact": None, "description": "The endpoint's response."},
     "HAS_FIELD": {"from": {"request", "response"}, "to": {"field"}, "impact": None, "description": "A field of the request or response."},
+    "HAS_EXAMPLE": {"from": {"response"}, "to": {"example"}, "impact": None, "description": "An example or expected response."},
     # rules
     "APPLIES_RULE": {"from": {"function"}, "to": {"rule"}, "impact": None, "description": "The function applies the business rule."},
 }

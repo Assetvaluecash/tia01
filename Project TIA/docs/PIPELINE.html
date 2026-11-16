@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIA pipeline, step by step</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b2430; --muted:#5b6777; --line:#d9dee6;
+  --accent:#1f5fbf; --accent-soft:#e6eefb; --in:#0e7a5f; --out:#8a4b00; --ex:#f3f0e6; --ex-line:#d8cfae;
+  --code:#eef1f5; --warn:#a13a2a; --warn-soft:#fbebe8;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12161c; --panel:#1a2029; --ink:#e6eaf0; --muted:#9aa6b6; --line:#2e3744;
+    --accent:#7fb0ff; --accent-soft:#1e2c44; --in:#5fd0ae; --out:#f0b060; --ex:#24231c; --ex-line:#4a4630;
+    --code:#232b36; --warn:#ff9c8a; --warn-soft:#3a2320;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:20px 16px 8px;max-width:1180px;margin:0 auto}
+h1{margin:0 0 6px;font-size:24px}
+header p{margin:4px 0;color:var(--muted);max-width:80ch}
+code,pre{font-family:ui-monospace,Consolas,"Cascadia Mono",Menlo,monospace;font-size:13px}
+code{background:var(--code);padding:1px 5px;border-radius:4px}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;margin:8px 0;line-height:1.45}
+pre code{background:none;padding:0}
+a{color:var(--accent)}
+
+/* the horizontal pipeline */
+.strip-wrap{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 0}
+.strip{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:4px 16px 10px;max-width:1180px;margin:0 auto;scrollbar-width:thin}
+.stage{flex:0 0 auto;display:flex;align-items:center}
+.stage button{
+  width:118px;min-height:76px;padding:8px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);
+  cursor:pointer;text-align:left;font:inherit;display:flex;flex-direction:column;gap:2px
+}
+.stage button .n{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stage button .t{font-weight:600;font-size:14px;line-height:1.2}
+.stage button .s{font-size:11.5px;color:var(--muted);line-height:1.25}
+.stage button:hover{border-color:var(--accent)}
+.stage button[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.stage button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.arrow{flex:0 0 22px;text-align:center;color:var(--muted);font-size:16px;user-select:none}
+.tools{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tools button{font:inherit;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);cursor:pointer}
+.tools button:hover{border-color:var(--accent)}
+.tools span{color:var(--muted);font-size:13px}
+
+main{max-width:1180px;margin:0 auto;padding:16px}
+section.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:0 0 18px}
+.js section.step{display:none}
+.js section.step.active,.js.all section.step{display:block}
+section.step h2{margin:0 0 2px;font-size:21px}
+section.step .lead{color:var(--muted);margin:0 0 14px;max-width:85ch}
+.io{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 14px}
+@media (max-width:760px){.io{grid-template-columns:1fr}}
+.io div{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.io h3{margin:0 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.io .in h3{color:var(--in)} .io .out h3{color:var(--out)}
+.io p{margin:0}
+h3.sub{font-size:15px;margin:18px 0 6px}
+ol.how{margin:6px 0 6px 0;padding-left:22px}
+ol.how>li{margin:0 0 8px}
+ul{margin:6px 0;padding-left:22px}
+li{margin:2px 0}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:14px}
+.tw{overflow-x:auto}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:var(--code);font-weight:600}
+.example{background:var(--ex);border:1px solid var(--ex-line);border-radius:8px;padding:10px 14px;margin:14px 0 6px}
+.example h3{margin:0 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.example pre{background:transparent;padding:4px 0;margin:4px 0}
+.fail{background:var(--warn-soft);border-left:3px solid var(--warn);border-radius:4px;padding:8px 12px;margin:12px 0}
+.fail b{color:var(--warn)}
+.where{color:var(--muted);font-size:13px;margin-top:12px;border-top:1px dashed var(--line);padding-top:8px}
+.nav{display:flex;justify-content:space-between;margin-top:14px}
+.nav button{font:inherit;padding:6px 14px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);cursor:pointer}
+.nav button:hover{border-color:var(--accent)}
+.js.all .nav{display:none}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+@media print{.strip-wrap{position:static}.js section.step{display:block}.nav,.tools{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>TIA pipeline, step by step</h1>
+  <p>What happens to one change, from the moment someone presses <b>Run analysis</b> to the stored report. Click a step in the pipeline (or use the ← → keys) to see what goes in, exactly how the step works, and what comes out.</p>
+  <p><b>Running example:</b> a developer removes the field <code>disputed</code> from the <code>Payment</code> response of <code>payments-service</code> (branch <code>contract</code>, compared with <code>main</code>). Two other services, <code>statement-service</code> and <code>customer-portal</code>, call that API.</p>
+</header>
+
+<div class="strip-wrap">
+  <div class="strip" id="strip" role="tablist" aria-label="Pipeline steps"></div>
+  <div class="tools">
+    <button id="toggleAll" type="button">Show all steps on one page</button>
+    <span>Steps are in the order the code runs them.</span>
+  </div>
+</div>
+
+<main id="main">
+
+<!-- 1 -->
+<section class="step" data-t="Request" data-s="A change is submitted">
+  <h2>1. Request</h2>
+  <p class="lead">Someone asks "what does this change affect?". The request is checked before any work starts.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>A web click, a REST call (<code>POST /api/v1/impact-analyses</code>), or a pull-request webhook from GitHub, GitLab, Bitbucket or Azure DevOps.</p></div>
+    <div class="out"><h3>Comes out</h3><p>An authenticated request, tied to exactly one tenant (customer), with a target repository, a head (branch, commit or PR number) and an optional base.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Classify the route.</b> Every route must appear in a permission table. A route with no entry is refused (403), so a forgotten endpoint is closed, not open. This one needs the <code>analyze</code> permission.</li>
+    <li><b>Check the caller.</b> Rate limit, then the tenant gate: is this tenant active, and is there storage room?</li>
+    <li><b>Bind the tenant.</b> The database transaction runs <code>set_config('tia.tenant_id', …)</code>. PostgreSQL row-level security then hides every other tenant's rows. A transaction bound to no tenant sees nothing.</li>
+    <li><b>Check repository access.</b> A repository the caller may not read answers 404, exactly as if it did not exist.</li>
+    <li><b>Choose the door.</b> By default the analysis runs in the request. With <code>?async=true</code>, or for a webhook, it is queued and a worker runs the same code.</li>
+  </ol>
+  <h3 class="sub">The webhook door</h3>
+  <ul>
+    <li>The webhook signature is verified and the repository matched before anything is queued.</li>
+    <li>The job is keyed by provider, repository, PR number, head commit and base, so a re-delivered webhook is the same job.</li>
+    <li>Jobs of the same pull request share a group: a newer push marks older queued jobs <code>superseded</code> and asks a running one to cancel.</li>
+  </ul>
+  <div class="example"><h3>In the example</h3>
+<pre><code>POST /api/v1/impact-analyses
+{"target": "payments-service", "head": "contract", "base": "main"}</code></pre></div>
+  <p class="where">Code: <a href="../tia/api.py">api.py</a>, <a href="../tia/authapi.py">authapi.py</a>, <a href="../tia/rbac.py">rbac.py</a>, <a href="../tia/gate.py">gate.py</a>, <a href="../tia/db.py">db.py</a> (<code>Database.tx</code>), <a href="../tia/jobs.py">jobs.py</a> (<code>enqueue</code>), <a href="../tia/webhooks.py">webhooks.py</a></p>
+</section>
+
+<!-- 2 -->
+<section class="step" data-t="Resolve" data-s="Names become exact commits">
+  <h2>2. Resolve</h2>
+  <p class="lead">Branch names move. This step replaces every name with an exact commit id, so the analysis can be repeated later and give the same answer.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>Target repository, head (branch, commit or PR number), base, optional limits.</p></div>
+    <div class="out"><h3>Comes out</h3><p>A concrete request: base commit, head commit, the list of repositories in scope with a commit for each, the limits, and the tenant configuration it runs under.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Head.</b> A PR number is fetched from the host; a branch or commit is resolved in TIA's own clone.</li>
+    <li><b>Base.</b> The base is the <i>merge base</i> of the base branch and the head: the commit where the branch started. Changes other people merged into <code>main</code> since then are not counted as this developer's change.</li>
+    <li><b>Scope.</b> Every registered repository of the tenant, unless the request names a smaller set. The target is always included.</li>
+    <li><b>Other repositories.</b> Each is resolved to a commit (its default branch unless a revision is given). With more than four, this runs in parallel threads because each costs a git process.</li>
+    <li><b>Limits are ceilings.</b> <code>max_depth = min(requested, tenant maximum)</code>, and the same for <code>max_results</code>. A caller can ask for less, never for more.</li>
+    <li><b>Identity.</b> A hash of target, base, head, scope, revisions, limits and configuration is the job key. The same concrete request is the same job.</li>
+  </ol>
+  <div class="example"><h3>In the example</h3>
+<pre><code>{"target": "payments-service",
+ "base": "80d082d…", "head": "482b101…",
+ "scope": ["customer-portal", "payments-service", "statement-service"],
+ "revisions": {"customer-portal": "…", "statement-service": "…"},
+ "max_depth": 8, "max_results": 200, "time_budget_s": 60}</code></pre>
+  <p>Commit ids differ on every build of the demo data; the shape does not.</p></div>
+  <p class="where">Code: <a href="../tia/analysis_service.py">analysis_service.py</a> (<code>resolve</code> line 36, <code>job_key</code> line 76, <code>group_key</code> line 82), <a href="../tia/repos.py">repos.py</a></p>
+</section>
+
+<!-- 3 -->
+<section class="step" data-t="Read git" data-s="Files as bytes, never run">
+  <h2>3. Read git</h2>
+  <p class="lead">TIA asks git three questions: which files exist at this commit, what is in them, and which files differ between base and head.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>A local clone of each repository and the commit ids from step 2.</p></div>
+    <div class="out"><h3>Comes out</h3><p>For each commit, a map of file path → blob id. For the target, the list of changed files. File contents on demand.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <div class="tw"><table>
+    <tr><th>Function</th><th>Git command</th><th>Returns</th></tr>
+    <tr><td><code>resolve_rev</code></td><td>reads <code>.git/HEAD</code> and <code>refs/heads/…</code> directly; falls back to <code>git rev-parse</code></td><td>a 40-character commit id</td></tr>
+    <tr><td><code>list_tree</code></td><td><code>git ls-tree -r -z</code></td><td>path → blob id, regular files only (symlinks and submodules skipped)</td></tr>
+    <tr><td><code>read_blobs</code></td><td>one <code>git cat-file --batch</code> for many files</td><td>blob id → bytes</td></tr>
+    <tr><td><code>changed_files</code></td><td><code>git diff --name-status --no-renames</code></td><td>list of (status, path)</td></tr>
+  </table></div>
+  <h3 class="sub">Two properties that the rest depends on</h3>
+  <ul>
+    <li><b>The blob id is the content's identity.</b> Two files with the same bytes have the same blob id. Step 4 uses it as the cache key.</li>
+    <li><b>Code is only read.</b> Nothing is imported, built or executed. A hostile repository cannot run anything inside TIA.</li>
+  </ul>
+  <div class="example"><h3>In the example</h3>
+<pre><code>tree at main:      app.py, tests/test_payments.py, tia-services.yaml
+changed_files:     [("M", "app.py")]</code></pre></div>
+  <p class="where">Code: <a href="../tia/gitutil.py">gitutil.py</a> (lines 57, 74, 88, 128)</p>
+</section>
+
+<!-- 4 -->
+<section class="step" data-t="Extract" data-s="Files become facts">
+  <h2>4. Extract</h2>
+  <p class="lead">Each source file is parsed into facts. The target repository is extracted twice (base and head); every other repository once.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>A repository, a commit, its file tree and the bytes of files not seen before.</p></div>
+    <div class="out"><h3>Comes out</h3><p>One <code>RepoExtract</code> per repository and commit: lists of endpoints, schemas, functions, call sites, tests, entities, migrations, UI pages, written test cases, and the files that failed.</p></div>
+  </div>
+
+  <h3 class="sub">How the caching works</h3>
+  <ol class="how">
+    <li><b>Whole-commit cache.</b> If this repository at this commit was extracted before (same extractor version, same settings), the stored <code>RepoExtract</code> is returned and nothing below runs.</li>
+    <li><b>Read the small files first.</b> <code>tia-services.yaml</code>, Spring config and <code>contracts/*.json</code> give the service name, owner, criticality and which config keys point at which service.</li>
+    <li><b>Choose the files.</b> Files a parser exists for, minus the tenant's exclude patterns.</li>
+    <li><b>Build one key per file:</b>
+<pre><code>repo | service | strip_prefixes | exclude_patterns | EXTRACTOR_VERSION | blob id | path</code></pre>
+      Upgrading any parser changes <code>EXTRACTOR_VERSION</code>, so old facts cannot survive an upgrade.</li>
+    <li><b>One query</b> asks the store which keys it already has. Only the missing files are read and parsed.</li>
+    <li><b>Assemble.</b> Per-file facts are joined into one <code>RepoExtract</code>. Things that need the whole repository are resolved here (for example a Java class inheriting fields, or an ORM entity's table name). A full rescan uses the same assemble function, so incremental and full results are equal.</li>
+  </ol>
+
+  <h3 class="sub">How each kind of fact is extracted (Python shown; other languages produce the same fact types)</h3>
+  <div class="tw"><table>
+    <tr><th>Fact</th><th>What the parser looks for</th><th>What it records</th></tr>
+    <tr><td>Endpoint</td><td>A route decorator on a function, such as <code>@app.get("/accounts/{account_id}/payments")</code></td><td>method, path as written, normalised path, handler function, response schema, whether it returns one object or a list, success status, path/query/header parameters, authentication markers, file and line</td></tr>
+    <tr><td>Schema</td><td>A model class and its annotated fields, including <code>Field(gt=0, le=10000)</code></td><td>each field's type, required or optional, list or single, nullable, and constraints (min, max, length, pattern, allowed values)</td></tr>
+    <tr><td>Function</td><td>Every <code>def</code>, including methods</td><td>qualified name, signature, the names it calls, and two fingerprints: <code>hash</code> of the whole function and <code>body_hash</code> without the docstring</td></tr>
+    <tr><td>Outbound call</td><td>A call through an HTTP client, such as <code>requests.get(f"{PAYMENTS_BASE_URL}/accounts/{id}/payments")</code></td><td>method, normalised path, and where the base comes from: a config key, a host name or a literal URL. If the path or base cannot be determined, the reason is recorded.</td></tr>
+    <tr><td>Business rule</td><td>A condition applied to the items of a list: a comprehension <code>if</code>, a <code>filter(lambda …)</code>, a loop that skips or collects</td><td>the expression, the item fields it tests, the line</td></tr>
+    <tr><td>Error status</td><td><code>raise HTTPException(status_code=409)</code> and similar inside a function</td><td>status, line, detail</td></tr>
+    <tr><td>Test</td><td>Test functions. The test is read, not run.</td><td>the HTTP calls it makes, request bodies it sends, statuses it asserts, modules it imports, function names it calls</td></tr>
+    <tr><td>Data</td><td>ORM model classes, migrations, SQL in code</td><td>entity → table and columns; which function reads or writes it; each migration's operations</td></tr>
+    <tr><td>UI page</td><td>Angular, React, Vue and HTML templates</td><td>route, elements, candidate locators, mandatory flag, input rules, dropdown values, API calls the page makes</td></tr>
+    <tr><td>Written test case</td><td><code>testcases/*.csv</code>, <code>.yaml</code>, <code>.json</code></td><td>id, title, steps, expected result, entry point, priority</td></tr>
+  </table></div>
+
+  <h3 class="sub">Path normalisation</h3>
+  <p>Every path is normalised so both sides of a call can meet: <code>{account_id}</code>, <code>${id}</code>, <code>&lt;id&gt;</code> and <code>:id</code> all become <code>{}</code>, fixed segments are lower-cased, the query string and trailing slash are dropped, and the tenant's gateway prefixes are stripped.</p>
+<pre><code>/accounts/{account_id}/payments      →  /accounts/{}/payments      (provider's route)
+f"…/accounts/{account_id}/payments"  →  /accounts/{}/payments      (consumer's call)</code></pre>
+
+  <h3 class="sub">Parsers by language</h3>
+  <ul>
+    <li>Python: the standard <code>ast</code> module (FastAPI, Flask, Django REST).</li>
+    <li>Java: tree-sitter (Spring Boot, OpenFeign, JPA).</li>
+    <li>C#, Go, Kotlin, TypeScript/JavaScript: tree-sitter adapters behind an adapter registry.</li>
+    <li>OpenAPI files, SQL and stored procedures, Kafka producers and consumers, ORM models: their own adapters.</li>
+  </ul>
+
+  <div class="fail"><b>When a file cannot be parsed</b> (syntax error, not valid UTF-8) it is added to <code>files_failed</code> with the error. It later appears under <i>Unknowns</i> and makes the report <code>partial</code>. It is never silently skipped.</div>
+
+  <div class="example"><h3>In the example</h3>
+<pre><code>first run:   {"files": 2, "reused": 0, "parsed": 2}
+second run:  {"files": 2, "reused": 2, "parsed": 0}
+
+Endpoint   payments-service:GET /accounts/{}/payments   handler list_payments   app.py:48
+           response_schema "Payment", response_shape "list"
+Schema     Payment @main      payment_id, status, amount, disputed
+           Payment @contract  payment_id, status, amount
+CallSite   statement-service:client.py:9   GET /accounts/{}/payments
+           base_kind "config_key", base_value "PAYMENTS_BASE_URL"
+Rule       statement_rows (app.py:10)   expr "not p['disputed']"   fields ["disputed"]</code></pre></div>
+  <p class="where">Code: <a href="../tia/extraction.py">extraction.py</a> (<code>_file_key</code> line 16, <code>_extract_commit</code> line 33), <a href="../tia/extract_python.py">extract_python.py</a> (<code>_FileVisitor</code> line 315, <code>maybe_endpoint</code> 481, <code>maybe_callsite</code> 572, <code>item_filters</code> 280, <code>_body_hash</code> 253, <code>assemble</code> 1071), <a href="../tia/extract_java.py">extract_java.py</a>, <a href="../tia/extract_ui.py">extract_ui.py</a>, <a href="../tia/extract_data.py">extract_data.py</a>, <a href="../tia/models.py">models.py</a> (<code>normalize_path</code> line 254)</p>
+</section>
+
+<!-- 5 -->
+<section class="step" data-t="Diff" data-s="Base facts vs head facts">
+  <h2>5. Diff</h2>
+  <p class="lead">The target's base facts are compared with its head facts. TIA does not diff text lines; it diffs the facts from step 4.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The target's <code>RepoExtract</code> at base and at head, plus git's list of changed files.</p></div>
+    <div class="out"><h3>Comes out</h3><p>Raw change records: contract changes, event changes, data changes, procedure changes, changed and added functions, configuration changes, and leftover files.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Protect against unreadable files.</b> Any file that fails to parse at head is removed from the base side too. Otherwise every endpoint and function in it would look deleted, and every consumer would be reported broken. The count of declarations left out is reported as an unknown.</li>
+    <li><b>Contracts</b> (<code>diff_contracts</code>). For each base endpoint, find the head endpoint with the same method and normalised path.
+      <ul>
+        <li>Not found, but the same handler now serves another route → <code>endpoint_method_or_path_changed</code>.</li>
+        <li>Not found at all → <code>endpoint_removed</code>.</li>
+        <li>Found → compare response shape (object vs list), success status, authentication markers, and each parameter (newly required, allowed values removed, constraints tightened).</li>
+      </ul>
+      Then for each base schema: removed, each field removed, field type changed, field became required, enum values added or removed, constraints tightened, field added.</li>
+    <li><b>Events</b> (<code>diff_events</code>). Topics and message schemas, the same way.</li>
+    <li><b>Data</b> (<code>diff_data</code>). Migrations added between base and head, and the table and column operations they declare (dropped, renamed, type changed, made required, added).</li>
+    <li><b>Stored procedures, views, triggers.</b> Compared by a digest of the definition, then by signature: added, removed, signature changed, or body changed (with which tables it now writes or no longer writes).</li>
+    <li><b>Functions.</b> Match by id. A base function missing at head is <code>removed</code>; one whose <code>hash</code> differs is <code>modified</code>; an id only at head is <code>added</code>.</li>
+    <li><b>Configuration</b> (<code>configkeys.analyse</code>). Keys whose value was added, removed or changed in <code>.env</code>, properties, YAML, INI, TOML or settings JSON files; and keys that code starts or stops reading. Values are never recorded, only that they changed.</li>
+    <li><b>Leftovers.</b> A changed file that none of the above explains, and that is not a test or a <code>.md</code>/<code>.txt</code> file, becomes a file-level change.</li>
+  </ol>
+  <div class="example"><h3>In the example</h3>
+<pre><code>{"kind": "schema_field_removed", "element": "payments-service:schema:Payment",
+ "detail": "Payment.disputed removed", "file": "app.py", "line": 12,
+ "seeds": ["payments-service:schema:Payment"], "used_by_endpoint": true}</code></pre></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> lines 186–323, <a href="../tia/contracts.py">contracts.py</a> (<code>diff_contracts</code> line 51), <a href="../tia/events.py">events.py</a>, <a href="../tia/data.py">data.py</a>, <a href="../tia/configkeys.py">configkeys.py</a></p>
+</section>
+
+<!-- 6 -->
+<section class="step" data-t="Classify" data-s="Breaking, behaviour, or nothing">
+  <h2>6. Classify</h2>
+  <p class="lead">Each raw change is given an effect, and turned into a <b>seed</b>: a starting point in the graph with a kind. Classification happens at three levels.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The raw change records from step 5 and the tenant's compatibility rules.</p></div>
+    <div class="out"><h3>Comes out</h3><p><code>changed_components</code> (what the report lists), <code>seeds</code> (what the walk starts from), and one overall <code>change_type</code>.</p></div>
+  </div>
+
+  <h3 class="sub">Level 1: is a contract change breaking?</h3>
+  <div class="tw"><table>
+    <tr><th>Change</th><th>Breaking?</th></tr>
+    <tr><td>Endpoint removed; method or path changed</td><td>Always</td></tr>
+    <tr><td>Response field removed</td><td>Yes, if the schema is returned by an endpoint</td></tr>
+    <tr><td>Field type changed; schema removed</td><td>Yes, if the schema is used by any endpoint</td></tr>
+    <tr><td>Request field became required, or a new required request field</td><td>Always</td></tr>
+    <tr><td>Field added (optional, or on a response)</td><td>No: compatible</td></tr>
+    <tr><td>Request enum value removed; response enum value added; request constraint tightened; parameter now required; response shape changed; success status changed; authentication added or changed</td><td>Yes by default. Each is a named rule the tenant can reconfigure.</td></tr>
+    <tr><td>Authentication removed</td><td>Not breaking for consumers; flagged for security review</td></tr>
+    <tr><td>Headers, error response bodies</td><td>Not evaluated. Reported as "compatibility not evaluated", never as compatible.</td></tr>
+  </table></div>
+
+  <h3 class="sub">Level 2: what is the effect of a changed function? (<code>classify_function</code>)</h3>
+  <p>The checks run in this order; the first that applies decides.</p>
+  <div class="tw"><table>
+    <tr><th>#</th><th>Check</th><th>Effect</th></tr>
+    <tr><td>1</td><td>The function is gone, something at head still calls that name, and no function with that name remains</td><td><code>breaking</code></td></tr>
+    <tr><td>2</td><td>The function is gone and nothing calls it</td><td><code>compatible_change</code></td></tr>
+    <tr><td>3</td><td><code>body_hash</code> is equal (only the docstring differs)</td><td><code>no_functional_change</code></td></tr>
+    <tr><td>4</td><td>The signature changed incompatibly <b>and</b> at least one caller in the repository was not changed</td><td><code>breaking</code></td></tr>
+    <tr><td>5</td><td>The signature changed incompatibly and every caller was updated in the same change</td><td><code>behaviour_change</code></td></tr>
+    <tr><td>6</td><td>Anything else: the body changed</td><td><code>behaviour_change</code></td></tr>
+  </table></div>
+  <p>What counts as an incompatible signature change:</p>
+  <ul>
+    <li>Python: a parameter removed, a parameter that lost its default, a new parameter without a default, positional order changed, return type changed. Parameter names matter because callers may pass them by keyword.</li>
+    <li>Java: the list of parameter types changed, or the return type changed. Names do not matter to callers.</li>
+    <li>A new parameter <i>with</i> a default is compatible.</li>
+  </ul>
+
+  <h3 class="sub">Level 3: the seed kind (this is what severity uses later)</h3>
+  <div class="tw"><table>
+    <tr><th>Source of the seed</th><th>Seed node</th><th>Kind</th></tr>
+    <tr><td>Breaking contract, event, data or procedure change</td><td>the schema, endpoint, topic, table, column or procedure</td><td><code>breaking</code></td></tr>
+    <tr><td>Non-breaking one of the same</td><td>same</td><td><code>nonbreaking</code></td></tr>
+    <tr><td>Function classified <code>breaking</code></td><td>the function</td><td><code>breaking</code></td></tr>
+    <tr><td>Function classified <code>behaviour_change</code> or <code>compatible_change</code> (removed)</td><td>the function</td><td><code>nonbreaking</code></td></tr>
+    <tr><td>Function classified <code>no_functional_change</code></td><td>none</td><td>no seed: reaches nothing</td></tr>
+    <tr><td>Configuration key changed</td><td>each function that reads the key</td><td><code>nonbreaking</code> (behaviour change)</td></tr>
+    <tr><td>File-level change</td><td>every function in that file</td><td><code>unclassified</code></td></tr>
+    <tr><td>Added function, added procedure</td><td>none</td><td>listed in the report, no seed</td></tr>
+  </table></div>
+  <p>A data seed also carries an access mode. A new required column only breaks code that <i>inserts</i>, so its seed is marked <code>write</code> and the walk follows only write edges from it.</p>
+
+  <h3 class="sub">The overall change type</h3>
+  <p>The first match wins: <code>test_only</code> (every changed file is a test) → <code>no_functional_change</code> → <code>api_change</code> → <code>event_change</code> → <code>data_change</code> → <code>config_or_file_change</code> → <code>implementation_change</code>.</p>
+
+  <div class="example"><h3>In the example</h3>
+<pre><code>changed_component  {"type": "api_schema", "change": "schema_field_removed",
+                    "breaking": true, "effect": "breaking", "detail": "Payment.disputed removed"}
+seed               {"node": "payments-service:schema:Payment", "kind": "breaking",
+                    "label": "Payment.disputed removed"}
+change_type        "api_change"</code></pre>
+  <p>Other branches of the same demo: <code>docstring</code> gives no seed and "nothing to retest"; <code>behaviour</code> gives a <code>nonbreaking</code> seed on <code>ordered()</code>; <code>signature_unfixed</code> gives a <code>breaking</code> seed because the caller was not updated.</p></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> lines 207–337, <a href="../tia/contracts.py">contracts.py</a> (<code>RULES</code> line 23), <a href="../tia/testscope.py">testscope.py</a> (<code>signature_diff</code> line 38, <code>classify_function</code> line 68)</p>
+</section>
+
+<!-- 7 -->
+<section class="step" data-t="Build graph" data-s="Facts become nodes and edges">
+  <h2>7. Build graph</h2>
+  <p class="lead">All extracts are joined into one typed graph. The target contributes its <b>base</b> facts: the graph describes the landscape as it is today, and the change is then walked through it.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>One <code>RepoExtract</code> per repository in scope.</p></div>
+    <div class="out"><h3>Comes out</h3><p>A <code>Graph</code>: nodes with a type, edges with a relationship, an evidence status, a strategy and the file and line that prove them. Plus a list of calls that could not be resolved.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Reuse if possible.</b> The graph id is a hash of its inputs (each repository's commit, extractor version, configuration version, prefixes, schema version). If a graph with that id is stored, it is loaded and steps 2–8 are skipped.</li>
+    <li><b>Nodes.</b> One per service, function, type, schema, endpoint, call site and test.</li>
+    <li><b>Endpoint edges.</b> service <code>EXPOSES</code> endpoint; handler function <code>HANDLES</code> endpoint; endpoint <code>USES_SCHEMA</code> schema.</li>
+    <li><b>Call edges inside a repository.</b> Calls are matched by function name.
+      <ul>
+        <li>Exactly one function has that name → a confirmed <code>CALLS</code> edge.</li>
+        <li>Several have it → one <b>inferred</b> edge to each candidate (rule <code>INF-CALL-AMBIGUOUS</code>), so the call is not lost but is never presented as certain.</li>
+      </ul></li>
+    <li><b>Inheritance.</b> <code>INHERITS</code> edges between types, with the same one-or-many rule.</li>
+    <li><b>Test edges</b> (static association, the test is not run):
+      <ul>
+        <li>the test's HTTP call matches an endpoint's method and path → confirmed, strategy <code>test-http-call</code>;</li>
+        <li>the test imports a module and calls one of its functions → confirmed, <code>test-import-call</code>;</li>
+        <li>only the file name matches (<code>test_x.py</code> ↔ <code>x.py</code>) → inferred, <code>INF-TEST-NAMING</code>.</li>
+      </ul></li>
+    <li><b>Events.</b> Topic nodes; <code>PUBLISHES</code> from producers; listener nodes with <code>CONSUMES_EVENT</code>.</li>
+    <li><b>Cross-repository edges</b> are added by step 8. Then the data layer (entity <code>MAPS_TO</code> table, function <code>READS</code>/<code>WRITES</code>), SQL lineage, and the use-case structure (screens, elements, locators, request and response fields, rules).</li>
+  </ol>
+  <h3 class="sub">How the graph answers "who is affected?"</h3>
+  <p>Every edge is stored in the direction a change travels. The direction per relationship is fixed in one place, the graph schema.</p>
+  <div class="tw"><table>
+    <tr><th>Edge as written</th><th>A change travels</th><th>Meaning</th></tr>
+    <tr><td>A <code>CALLS</code> B</td><td>B → A</td><td>changing the callee affects the caller</td></tr>
+    <tr><td>call site <code>CONSUMES_API</code> endpoint</td><td>endpoint → call site</td><td>changing the provider affects the consumer</td></tr>
+    <tr><td>endpoint <code>USES_SCHEMA</code> schema</td><td>schema → endpoint</td><td>changing a schema affects the endpoints that use it</td></tr>
+    <tr><td>function <code>HANDLES</code> endpoint</td><td>function → endpoint</td><td>changing the handler affects its endpoint</td></tr>
+    <tr><td>function <code>READS</code>/<code>WRITES</code> table</td><td>table → function</td><td>changing data affects the code that uses it</td></tr>
+    <tr><td><code>EXPOSES</code>, <code>HAS_SCREEN</code>, <code>HAS_ELEMENT</code>, …</td><td>not traversed</td><td>structure the tester views read; never changes an impact result</td></tr>
+  </table></div>
+  <div class="example"><h3>In the example</h3>
+  <p>49 nodes and 40 edges: <code>CALLS</code> 11, <code>CONSUMES_API</code> 3, <code>EXPOSES</code> 5, <code>HANDLES</code> 5, <code>ISSUES</code> 7, <code>TESTS</code> 6, <code>USES_SCHEMA</code> 3.</p></div>
+  <p class="where">Code: <a href="../tia/graph.py">graph.py</a> (<code>add_edge</code> line 40, <code>build_graph</code> line 103), <a href="../tia/graphstore.py">graphstore.py</a> (<code>get_or_build</code> line 37), <a href="../tia/graphschema.py">graphschema.py</a>, <a href="GRAPH-SCHEMA.md">GRAPH-SCHEMA.md</a></p>
+</section>
+
+<!-- 8 -->
+<section class="step" data-t="Link services" data-s="Who calls whom, with proof">
+  <h2>8. Link services</h2>
+  <p class="lead">The hardest part: deciding that a call in one repository reaches an endpoint in another. This is the only place a cross-repository relationship is created, and matching names alone never creates one.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>Every call site, every endpoint, every declared contract, and the merged service map (which config key, host or client package belongs to which service).</p></div>
+    <div class="out"><h3>Comes out</h3><p><code>CONSUMES_API</code> edges with a strategy and evidence status; an <code>unresolved</code> list with a reason for each call that got no edge; resolution statistics.</p></div>
+  </div>
+  <h3 class="sub">How one call site is resolved</h3>
+  <ol class="how">
+    <li><b>R1, generated or shared client.</b> The call goes through a client package. Look the package up in the service map. If exactly one of that provider's handlers has the called method's name → edge, <code>source_confirmed</code>.</li>
+    <li><b>R2, fully resolved HTTP call.</b> The call has a path and a known base.
+      <ul>
+        <li>Base is a config key → look the key up in the service map.</li>
+        <li>Base is a host → look the host up, or accept it if it is itself a service name.</li>
+        <li>Among that provider's endpoints, exactly one matches the normalised path and the method → edge, <code>source_confirmed</code>.</li>
+        <li>Several match → no edge; reason "call matches N endpoints".</li>
+        <li>None match → no edge; reason "no endpoint … found in provider".</li>
+      </ul></li>
+    <li><b>R5, unique path match.</b> Only if there is still no edge and the call is not through a client package. If exactly one endpoint in all <i>other</i> services has this method and path → edge, but marked <b><code>inferred</code></b> with rule <code>INF-PATH-UNIQUE</code>. Not used when R2 already named a provider and found no such endpoint there.</li>
+    <li><b>Otherwise unresolved.</b> The call goes on the list with its reason.</li>
+  </ol>
+  <h3 class="sub">Then the declared contracts (R3)</h3>
+  <ul>
+    <li>Each interaction in a <code>contracts/*.json</code> file is matched to exactly one endpoint of the named provider.</li>
+    <li>If the same consumer already has a code-level edge to that endpoint, that edge is upgraded to <code>corroborated</code> (strategy <code>R2+R3</code>).</li>
+    <li>If not, a <code>contract_ref</code> node is created with a <code>contract_confirmed</code> edge.</li>
+  </ul>
+  <h3 class="sub">Evidence statuses, strongest first</h3>
+  <div class="tw"><table>
+    <tr><th>Status</th><th>Meaning</th><th>Counts as confirmed?</th></tr>
+    <tr><td><code>source_confirmed</code></td><td>found and resolved in source code (R1, R2)</td><td>Yes</td></tr>
+    <tr><td><code>contract_confirmed</code></td><td>a declared contract names it (R3)</td><td>Yes</td></tr>
+    <tr><td><code>corroborated</code></td><td>code and contract agree</td><td>Yes</td></tr>
+    <tr><td><code>runtime_observed</code></td><td>seen in ingested production traffic</td><td>Yes</td></tr>
+    <tr><td><code>inferred</code></td><td>a likely match (R5, ambiguous names, file naming)</td><td>No</td></tr>
+    <tr><td><code>stale</code></td><td>confirmed earlier, cannot be re-verified now</td><td>No</td></tr>
+  </table></div>
+  <div class="example"><h3>In the example</h3>
+<pre><code>tia-services.yaml (in both consumers):  config_keys: {PAYMENTS_BASE_URL: payments-service}
+
+statement-service:client.py:9  → payments-service:GET  /accounts/{}/payments   R2  source_confirmed
+customer-portal:client.py:9    → payments-service:GET  /accounts/{}/payments   R2  source_confirmed
+customer-portal:client.py:13   → payments-service:POST /accounts/{}/payments   R2  source_confirmed
+
+7 outbound call sites, 3 resolved (rate 0.429). The other 4 are front-end calls with relative URLs:
+"base URL not present in call". They are listed under Unknowns.</code></pre></div>
+  <p class="where">Code: <a href="../tia/resolve.py">resolve.py</a> (<code>resolve_consumers</code> line 37; R1 line 71, R2 line 86, R5 line 105, R3 line 126)</p>
+</section>
+
+<!-- 9 -->
+<section class="step" data-t="Walk" data-s="Follow the change outward">
+  <h2>9. Walk</h2>
+  <p class="lead">Starting from each seed, TIA follows the graph outward to everything that depends on it. This is a breadth-first search with explicit limits.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The graph, the seeds (those whose node exists in the graph), and the limits: depth 8, 200 results, 60 seconds by default.</p></div>
+    <div class="out"><h3>Comes out</h3><p><code>reached</code>: for every affected node, the path from the seed, the edges on that path, and which seeds reach it. Plus a <code>truncated</code> flag with the reason.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Add runtime callers first.</b> Callers seen only in ingested production traffic are added to this analysis's own copy of the graph.</li>
+    <li><b>Pass 1: confirmed edges only.</b> For each seed, take a queue starting at the seed. Repeatedly take a node and look at <code>impacted_by(node)</code>, in sorted order so the result is the same every time.</li>
+    <li><b>Rules applied at every step:</b>
+      <ul>
+        <li>If the path already has <code>max_depth</code> edges, stop here. If the node still had dependents, mark the walk truncated.</li>
+        <li>A test node is an answer, not a road: it is recorded but never walked through.</li>
+        <li>An inferred edge is skipped in this pass.</li>
+        <li>A seed marked <code>write</code> follows only <code>WRITES</code> edges to data; one marked <code>read</code> only <code>READS</code>.</li>
+        <li>If the time budget is used up, or <code>max_results</code> nodes are reached, stop and mark truncated.</li>
+      </ul></li>
+    <li><b>First path wins.</b> The first time a node is reached, its path is stored. If another seed reaches it later, only that seed's number is added.</li>
+    <li><b>Pass 2: inferred edges allowed.</b> Runs only if pass 1 was not truncated. Because first path wins, anything reachable through confirmed evidence keeps its confirmed path; pass 2 only adds what could not be reached otherwise.</li>
+  </ol>
+  <div class="fail"><b>When a limit is hit</b> the report says which one, lists it under <i>Unknowns</i>, and its status becomes <code>partial</code>. Raising <code>max_depth</code> in the tenant configuration lets the walk go further.</div>
+  <div class="example"><h3>In the example</h3>
+<pre><code>seed    payments-service:schema:Payment
+  ─USES_SCHEMA→   payments-service:GET /accounts/{}/payments         (endpoint)
+    ─CONSUMES_API→   statement-service:client.py:9                   (call site)
+      ─ISSUES→   fetch_payments  ─CALLS→ …  ─HANDLES→  GET /statements/{}/pdf
+    ─CONSUMES_API→   customer-portal:client.py:9                     (call site)
+      ─ISSUES→   fetch_payments  ─CALLS→ …  ─HANDLES→  GET /portal/accounts/{}/payments
+    ─TESTS→   tests that call the endpoint
+
+14 nodes reached, not truncated.</code></pre>
+  <p>The intermediate function names on each branch are shortened here.</p></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> (<code>bfs</code> line 367, the two passes at lines 400–402), <a href="../tia/enrich.py">enrich.py</a> (<code>apply_runtime</code>)</p>
+</section>
+
+<!-- 10 -->
+<section class="step" data-t="Findings" data-s="Reached nodes become findings">
+  <h2>10. Findings</h2>
+  <p class="lead">Not every reached node is worth reporting. This step decides which ones become findings, what kind of impact each is, and writes the explanation.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p><code>reached</code>, the seeds, the graph, the head extract of the target.</p></div>
+    <div class="out"><h3>Comes out</h3><p>A list of findings, each with component, impact type, change nature, evidence status, path, reason, tests, limitations and required verification. No severity yet.</p></div>
+  </div>
+  <h3 class="sub">Which node becomes which finding</h3>
+  <div class="tw"><table>
+    <tr><th>Reached node</th><th>Impact type</th></tr>
+    <tr><td>ORM entity</td><td><code>data</code> (its own detailed path, below)</td></tr>
+    <tr><td>Event listener</td><td><code>event</code></td></tr>
+    <tr><td>Call site, contract reference or runtime caller</td><td><code>contract</code> if the seed is a schema or endpoint; <code>transitive</code> if the seed is a table or column; otherwise <code>direct</code></td></tr>
+    <tr><td>Endpoint in another repository</td><td><code>transitive</code></td></tr>
+    <tr><td>Function in the changed repository</td><td><code>direct</code></td></tr>
+    <tr><td>Stored procedure, or a function reached through SQL</td><td><code>data</code></td></tr>
+    <tr><td>Anything else (the target's own endpoints, functions in other repositories, tests, schemas)</td><td>no finding of its own; it is a step on a path, or shown in the tester views</td></tr>
+  </table></div>
+  <h3 class="sub">How one finding is filled in</h3>
+  <ol class="how">
+    <li><b>Change nature.</b> <code>breaking</code> if any seed that reaches the node is breaking; else <code>nonbreaking</code>; else <code>unclassified</code>.</li>
+    <li><b>Evidence status of the path: the weakest link.</b> Checked in this order: any stale edge → <code>stale</code>; any inferred edge → <code>inferred</code>; any runtime-only edge → <code>runtime_observed</code>; then <code>corroborated</code>, <code>contract_confirmed</code>, and only if every edge is from source, <code>source_confirmed</code>.</li>
+    <li><b>Reason.</b> A sentence built from the node type and resolution strategy, ending in "Change: …". For example "depends on the changed provider through a fully resolved HTTP call at file:line".</li>
+    <li><b>Tests.</b> Tests whose own path passes through this node and ends in a <code>TESTS</code> edge.</li>
+    <li><b>Limitations.</b> Added when the relationship is inferred or stale, the change was only analysed at file level, no test evidence was found, or criticality is not configured.</li>
+    <li><b>Required verification.</b> "Run: test names", or "identify and run consumer tests" when none were found, and "verify compatibility with the deployed consumer version" for other repositories.</li>
+  </ol>
+  <h3 class="sub">Data findings (entities)</h3>
+  <ul>
+    <li>Lists the functions that read or write the entity.</li>
+    <li>A new required column produces no finding for a service that never writes to the table.</li>
+    <li>Checks whether the head revision already updated the mapping (<code>fixed_in_head</code>): if the same change drops the column and removes it from the entity, the finding is low.</li>
+    <li>Services in other repositories are linked only if they declare the same database.</li>
+  </ul>
+  <h3 class="sub">Stale relationships</h3>
+  <p>A consumer whose file can no longer be read is not in the graph, but may still depend on the changed endpoint. Such previously confirmed relationships get a finding marked <code>stale</code>, with "re-scan and confirm" as the verification, instead of disappearing.</p>
+  <div class="example"><h3>In the example</h3>
+<pre><code>{"component": "customer-portal", "node": "customer-portal:client.py:9", "node_type": "callsite",
+ "impact_type": "contract", "change_nature": "breaking",
+ "evidence_status": "source_confirmed", "resolution_strategy": "R2",
+ "reason": "customer-portal depends on the changed provider through a fully resolved HTTP call
+            at customer-portal:client.py:9. Change: Payment.disputed removed.",
+ "path": ["payments-service:schema:Payment", "payments-service:GET /accounts/{}/payments",
+          "customer-portal:client.py:9"],
+ "tests": [{"name": "test_portal_payments", "association": "test-http-call"}],
+ "required_verification": ["Run: test_portal_payments (tests/test_portal.py)",
+                           "Verify compatibility with the deployed consumer version"]}</code></pre></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> (<code>_path_status</code> line 87, <code>tests_for</code> 410, <code>entity_finding</code> 443, main loop 513–616, stale findings 619–655)</p>
+</section>
+
+<!-- 11 -->
+<section class="step" data-t="Score" data-s="A fixed severity table">
+  <h2>11. Score</h2>
+  <p class="lead">Severity is one small, pure function. The same four inputs always give the same severity, and every finding records the rule that produced it.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>For each finding: change nature, evidence status, whether it is in another repository, and the affected service's criticality.</p></div>
+    <div class="out"><h3>Comes out</h3><p>Severity, the rule id, whether the finding is material, and the final order and ids (F1, F2, …).</p></div>
+  </div>
+  <h3 class="sub">The rule table (<code>severity.compute</code>), checked top to bottom</h3>
+  <div class="tw"><table>
+    <tr><th>#</th><th>Condition</th><th>Severity</th><th>Rule id</th></tr>
+    <tr><td>1</td><td>Change is unclassified (file-level)</td><td>unknown</td><td><code>SEV-UNCLASSIFIED</code></td></tr>
+    <tr><td>2</td><td>Affected node is in the changed repository</td><td>low</td><td><code>SEV-LOCAL</code></td></tr>
+    <tr><td>3</td><td>Breaking, service marked critical</td><td>critical</td><td><code>SEV-BREAKING-CRITICAL</code></td></tr>
+    <tr><td>4</td><td>Breaking</td><td>high</td><td><code>SEV-BREAKING-CONFIRMED</code></td></tr>
+    <tr><td>5</td><td>Not breaking, service marked critical</td><td>high</td><td><code>SEV-NONBREAKING-CRITICAL</code></td></tr>
+    <tr><td>6</td><td>Not breaking</td><td>medium</td><td><code>SEV-NONBREAKING-CONFIRMED</code></td></tr>
+    <tr><td>7</td><td>After 3–6: the path is inferred or stale</td><td>capped at medium</td><td><code>SEV-INFERRED-CAP</code> / <code>SEV-STALE-CAP</code></td></tr>
+  </table></div>
+  <ul>
+    <li>Criticality alone never produces critical: a breaking change is also needed.</li>
+    <li>Criticality comes from the tenant's service catalog, which wins over the repository's own <code>tia-services.yaml</code>.</li>
+    <li>The cap level is a tenant setting (default medium; can be removed).</li>
+  </ul>
+  <h3 class="sub">Data changes (<code>compute_data</code>)</h3>
+  <div class="tw"><table>
+    <tr><th>Situation</th><th>Severity</th><th>Rule id</th></tr>
+    <tr><td>The entity mapping is already updated in the same change</td><td>low</td><td><code>SEV-DATA-UPDATED</code></td></tr>
+    <tr><td>The changed repository still maps a table or column its own migration drops or renames</td><td>high</td><td><code>SEV-DATA-MAPPING-BROKEN</code></td></tr>
+    <tr><td>The changed repository, any other data change</td><td>low</td><td><code>SEV-LOCAL</code></td></tr>
+    <tr><td>Another repository sharing the database</td><td colspan="2">the main table above</td></tr>
+  </table></div>
+  <h3 class="sub">After scoring</h3>
+  <ol class="how">
+    <li><b>Tenant overrides.</b> A tenant may set a different severity for a rule. The finding then records the rule, the default and the configured value, and the report lists the override under <i>Unknowns</i>. Overrides are never silent.</li>
+    <li><b>Material?</b> Yes if the severity is critical, high or medium, or if there is a breaking change on the path. Thresholds are tenant settings.</li>
+    <li><b>Sort and number.</b> By severity (highest first), then depth, component, node. The sort makes the order identical on every run. Then ids F1, F2, … are assigned.</li>
+  </ol>
+  <div class="example"><h3>In the example</h3>
+  <p>Breaking + another repository + confirmed + not critical → row 4: <b>high</b>, <code>SEV-BREAKING-CONFIRMED</code>. The demo reports 5 high findings.</p>
+  <p>Import a catalog marking <code>statement-service</code> critical and run it again: its two findings match row 3 and become <b>critical</b> (<code>SEV-BREAKING-CRITICAL</code>); the others stay high.</p></div>
+  <p class="where">Code: <a href="../tia/severity.py">severity.py</a> (<code>compute</code> line 26, <code>compute_data</code> 49, <code>apply_override</code> 67, <code>is_material</code> 75), <a href="../tia/impact.py">impact.py</a> lines 658–666</p>
+</section>
+
+<!-- 12 -->
+<section class="step" data-t="Tester views" data-s="What to test, in tester terms">
+  <h2>12. Tester views</h2>
+  <p class="lead">Findings are written for engineers. This step re-expresses the same result as things a tester can act on without reading code.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p><code>reached</code>, the seeds, the graph, every extract (including written test cases and UI pages).</p></div>
+    <div class="out"><h3>Comes out</h3><p><code>test_scope</code>: entry points to test, rule gaps, consistency checks, configuration checks, and the regression selection.</p></div>
+  </div>
+  <h3 class="sub">Entry points (<code>test_scope</code>)</h3>
+  <ul>
+    <li>Reached nodes are projected onto <b>entry points</b>: API endpoints, in the changed service and in every service that calls it.</li>
+    <li>Each gets a plain name if its owners declared one under <code>entry_points:</code> in <code>tia-services.yaml</code> ("Monthly statement PDF").</li>
+    <li>Each gets a <b>why</b> (the chain of code from the change to it), a <b>change effect</b> (the strongest on its path) and the tests found.</li>
+    <li>Reached code that no analysed endpoint calls is listed separately, not dropped.</li>
+  </ul>
+  <h3 class="sub">Rule gaps (<code>rule_gaps</code>)</h3>
+  <ol class="how">
+    <li>Take an endpoint that two or more services consume.</li>
+    <li>For each consumer, collect the business rules (item filters from step 4) on the code path that handles the response.</li>
+    <li>Keep only rules that test a field of the endpoint's declared response schema.</li>
+    <li>If one consumer applies a rule and another does not, report it: the rule, where it is applied (function, file, line) and where it is missing.</li>
+  </ol>
+  <h3 class="sub">Configuration checks</h3>
+  <ul>
+    <li>A key changed in a config file: which entry points read it.</li>
+    <li>Code newly reads a key: which file sets it, or "no file in the repository sets it, set it in the environment before testing".</li>
+  </ul>
+  <h3 class="sub">Regression selection (<code>regression.select</code>)</h3>
+  <p>Every written test case lands in exactly one list.</p>
+  <ol class="how">
+    <li><b>Find what the case tests.</b> Endpoints it names (the <i>Entry point</i> column, or a route or plain name in its text), plus endpoints called by any page it names.</li>
+    <li><b>Names a page that calls no API</b> → <i>not affected</i>, with that reason.</li>
+    <li><b>Names nothing TIA can match</b> → <i>could not be mapped, review by hand</i>. Never treated as unaffected.</li>
+    <li><b>None of its endpoints were reached</b> → <i>not affected by this change</i>.</li>
+    <li><b>At least one was reached</b> → <i>run again</i>, with a reason per reached entry point (its change effect and why).</li>
+    <li><b>Sort</b> the selected cases by effect strength, then by the case's priority.</li>
+    <li><b>Cases the change itself added or edited</b> are listed apart: they are new tests, not regression.</li>
+  </ol>
+  <div class="fail"><b>What "run again" means:</b> the change reaches what the case tests. It does not mean the case will fail. Matching is static and textual.</div>
+  <div class="example"><h3>In the example</h3>
+<pre><code>entry points:  Payments screen · Monthly statement PDF · GET /accounts/{account_id}/payments
+               all "breaking", 4 linked tests
+
+rule gap:      shared endpoint  GET /accounts/{account_id}/payments
+               rule             not p['disputed']
+               applied by       statement_rows (statement-service, line 10)
+               missing in       Payments screen (customer-portal)</code></pre>
+  <p>In the larger Northwind Pay showcase, the headline reads "Regression-test 4 of your 14 test case(s)" for the same kind of change.</p></div>
+  <p class="where">Code: <a href="../tia/testscope.py">testscope.py</a> (<code>rule_gaps</code> line 166, <code>test_scope</code> 281), <a href="../tia/regression.py">regression.py</a> (<code>targets_of</code> line 58, <code>select</code> 68), <a href="../tia/configkeys.py">configkeys.py</a>, <a href="../tia/coverage.py">coverage.py</a>, <a href="../tia/automation.py">automation.py</a>, <a href="../tia/testerpack.py">testerpack.py</a></p>
+</section>
+
+<!-- 13 -->
+<section class="step" data-t="Unknowns" data-s="What TIA could not see">
+  <h2>13. Unknowns and status</h2>
+  <p class="lead">Before finishing, the engine lists everything it could not see or evaluate, and decides how complete the report is.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>Everything collected so far: failures from extraction, unresolved calls, the truncation flag, scan states.</p></div>
+    <div class="out"><h3>Comes out</h3><p><code>unknowns</code> (each with an area, a reason and whether it affects confidence), the report <code>status</code>, and the summary counts.</p></div>
+  </div>
+  <h3 class="sub">Unknowns that affect confidence</h3>
+  <div class="tw"><table>
+    <tr><th>Area</th><th>Raised when</th></tr>
+    <tr><td><code>unresolved_outbound_calls</code></td><td>step 8 left call sites without a provider</td></tr>
+    <tr><td><code>parse_failures</code></td><td>any file failed to parse, at base or at head</td></tr>
+    <tr><td><code>changes_not_evaluated</code></td><td>declarations sat in a file that does not parse at head</td></tr>
+    <tr><td><code>truncated_traversal</code></td><td>the walk hit depth, result or time limit</td></tr>
+    <tr><td><code>inaccessible_repositories</code></td><td>a repository in scope could not be read</td></tr>
+    <tr><td><code>repository_freshness</code>, <code>stale_relationships</code></td><td>the latest scan of a repository failed; old data was used</td></tr>
+    <tr><td><code>unsupported_http_clients</code>, <code>unsupported_language_files</code></td><td>code uses a library or language no adapter reads</td></tr>
+    <tr><td><code>external_consumers</code>, <code>event_consumers</code></td><td>an API or contract is involved: consumers outside the analysed repositories cannot be seen</td></tr>
+    <tr><td><code>ambiguous_intra_repo_calls</code></td><td>calls matched several functions by name</td></tr>
+    <tr><td><code>file_level_analysis</code></td><td>a changed file could only be compared as a whole</td></tr>
+    <tr><td><code>data_access_not_analysed</code>, <code>database_identity</code>, <code>unparsed_migration_statements</code></td><td>data impact may be understated</td></tr>
+    <tr><td><code>empty_change</code></td><td>base and head are the same commit</td></tr>
+  </table></div>
+  <h3 class="sub">Informational unknowns (do not lower the status)</h3>
+  <p>Criticality not configured; compatibility aspects not evaluated (headers, error bodies); configuration read from outside the repository; severity overridden by the tenant; no CI results, coverage, runtime, deployment or build evidence ingested; secrets withheld.</p>
+  <h3 class="sub">The status rule</h3>
+  <div class="tw"><table>
+    <tr><th>Status</th><th>When</th></tr>
+    <tr><td><code>partial</code></td><td>the walk was truncated, or a repository was unreadable, or a file failed to parse, or a scan was stale</td></tr>
+    <tr><td><code>complete_with_gaps</code></td><td>none of those, but at least one unknown affects confidence</td></tr>
+    <tr><td><code>complete</code></td><td>no unknown affects confidence</td></tr>
+    <tr><td><code>failed</code></td><td>the target's revisions could not be read at all (decided at the very start)</td></tr>
+  </table></div>
+  <p>With zero findings the summary says: "No downstream impact was identified within the analysed scope; this is not proof that no impact exists."</p>
+  <div class="example"><h3>In the example</h3>
+  <p>The four unresolved front-end calls raise <code>unresolved_outbound_calls</code>, and the changed API raises <code>external_consumers</code>. Nothing was truncated and nothing failed to parse, so the status is <code>complete_with_gaps</code>.</p></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> lines 684–867 (status rule at 848–853)</p>
+</section>
+
+<!-- 14 -->
+<section class="step" data-t="Enrich" data-s="Evidence, policy, secrets">
+  <h2>14. Enrich</h2>
+  <p class="lead">The static result is complete. This step adds what other systems have told TIA, evaluates the tenant's release policy, and removes anything secret.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The report so far, and evidence that pipelines pushed in earlier: test runs, coverage, runtime calls, deployments, builds, incidents, approvals.</p></div>
+    <div class="out"><h3>Comes out</h3><p>The final report dictionary.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Structural context.</b> Circular dependencies, highly connected files, upward calls across folder layers, and groups of files that call each other, for the changed repository. Plus a Mermaid diagram of the services involved. This is derived context: it never adds or removes a finding.</li>
+    <li><b>Test evidence.</b> Each linked test gets its last CI result: <code>passed</code>, <code>failed</code> or <code>no_ci_results</code>. Without ingested results, tests are listed as "associated", not as passed.</li>
+    <li><b>Runtime.</b> Findings whose relationship was also seen in production traffic are marked.</li>
+    <li><b>Deployments and builds.</b> Which revision of each affected service runs in which environment, and whether the proposed revision has been built.</li>
+    <li><b>Failure signatures.</b> Recurring test failures across the history, and incidents carrying the same signature.</li>
+    <li><b>Owners.</b> The owning team of each affected service, from the tenant registry or <code>tia-services.yaml</code>.</li>
+    <li><b>Release policy.</b> The tenant's rules are evaluated on the report: <code>pass</code>, <code>fail</code>, <code>requires_review</code> or <code>not_evaluated</code>. By default the mode is advisory.</li>
+    <li><b>Scrub.</b> The whole report passes through <code>scrub_json</code>. Anything that looks like a credential is removed, counted, and reported as "treat as exposed and rotate".</li>
+  </ol>
+  <div class="fail"><b>Evidence is never fetched during an analysis.</b> Only records already ingested are used, and their ids are pinned in the snapshot. That is what keeps the result reproducible: ingest first, then analyse.</div>
+  <div class="example"><h3>In the example</h3>
+  <p>After the demo's seed script has pushed evidence, a fifth consumer appears: <code>mobile-app</code>, known only from runtime traffic, with the limitation "outside the analysed repositories". <code>test_portal_payments</code> shows <code>no_ci_results</code> if no test run was ingested for its repository.</p></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> lines 898–972, <a href="../tia/enrich.py">enrich.py</a>, <a href="../tia/evidence.py">evidence.py</a>, <a href="../tia/structure.py">structure.py</a>, <a href="../tia/communities.py">communities.py</a>, <a href="../tia/diagram.py">diagram.py</a>, <a href="../tia/policy.py">policy.py</a>, <a href="../tia/scrub.py">scrub.py</a></p>
+</section>
+
+<!-- 15 -->
+<section class="step" data-t="Store" data-s="Snapshot and audit chain">
+  <h2>15. Store</h2>
+  <p class="lead">The report is saved together with a record of exactly what it was computed from, and an entry in a tamper-evident log.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The final report and every input identity: commits, parser versions, graph id, configuration, evidence ids.</p></div>
+    <div class="out"><h3>Comes out</h3><p>Rows in <code>analyses</code>, <code>evidence_snapshots</code> and <code>audit_log</code>, all owned by the tenant.</p></div>
+  </div>
+  <h3 class="sub">How it works</h3>
+  <ol class="how">
+    <li><b>Snapshot id.</b> A hash over each repository's commit and extractor version, the head commit, the graph id, the stale relationships, each repository's scan state, the ingested evidence ids and the configuration identity:
+<pre><code>snapshot_id = "snap-" + sha256(repr((snap_src, cfg.ident(CONFIG_VERSION))))[:12]</code></pre></li>
+    <li><b>Analysis id.</b> For a pull request: <code>tia-pr-&lt;number&gt;-&lt;head commit&gt;</code>. Otherwise a hash of target, base, head and snapshot id. The same inputs give the same id.</li>
+    <li><b>Store the snapshot</b> with the full configuration settings, limits and evidence ids, then <b>store the report</b>.</li>
+    <li><b>Audit entry.</b> Appended to a hash chain:
+<pre><code>hash = HMAC-SHA256(audit_key, prev_hash | seq | ts | event | payload)</code></pre>
+      Each entry includes the previous entry's hash, so editing or deleting a row breaks the chain from that point. The key is kept outside the database, so someone who can edit rows cannot recompute a valid chain.</li>
+    <li><b>Pin the commits.</b> Every analysed commit is kept reachable in TIA's clones so the analysis can be reproduced after branches move or are deleted.</li>
+  </ol>
+  <h3 class="sub">Reproducing a report</h3>
+  <p><code>POST /api/v1/impact-analyses/{id}/reproduce</code> re-runs steps 3–14 on the pinned commits, configuration and evidence, without storing anything, and compares the two reports. It answers <code>{"identical": true, "versions_match": true}</code>, or lists the differences. If a pinned commit is no longer available it refuses instead of answering from something else.</p>
+  <div class="example"><h3>In the example</h3>
+<pre><code>GET /api/v1/audit/verify   →  {"ok": true, …}</code></pre></div>
+  <p class="where">Code: <a href="../tia/impact.py">impact.py</a> lines 355–360 and 973–986, <a href="../tia/store.py">store.py</a> (<code>_chain_hash</code> line 29), <a href="../tia/analysis_service.py">analysis_service.py</a> (<code>pin_analysis</code> line 175, <code>reproduce</code> 187)</p>
+</section>
+
+<!-- 16 -->
+<section class="step" data-t="Publish" data-s="Report, PR comment, agents">
+  <h2>16. Publish</h2>
+  <p class="lead">The stored report is shown to people and tools. What each reader sees is filtered by what they are allowed to read.</p>
+  <div class="io">
+    <div class="in"><h3>Goes in</h3><p>The stored report and the reader's identity.</p></div>
+    <div class="out"><h3>Comes out</h3><p>The web report, a shareable page, a pull-request comment and check, team notifications, and JSON for tools and agents.</p></div>
+  </div>
+  <h3 class="sub">Where it goes</h3>
+  <div class="tw"><table>
+    <tr><th>Channel</th><th>What it shows</th></tr>
+    <tr><td>Web UI</td><td>The full report: What to test, findings table, paths drawn on the graph, tester pack, unknowns.</td></tr>
+    <tr><td>Shareable page <code>/analyses/&lt;id&gt;</code></td><td>Server-rendered HTML with no script, so it opens from a PR comment and prints.</td></tr>
+    <tr><td>Pull request</td><td>One advisory comment and one check run, both updated in place on each push.</td></tr>
+    <tr><td>Teams</td><td>One notification per owning team of a materially affected component (chat webhook, e-mail or a ServiceNow task). Sent once; only failed deliveries are retried.</td></tr>
+    <tr><td>REST API and Python SDK</td><td>The same JSON the UI renders.</td></tr>
+    <tr><td>AI agents</td><td>A read-only MCP endpoint (<code>POST /mcp</code>) and the Knowledge Fabric adapter (<code>POST /query/tia</code>).</td></tr>
+    <tr><td>Neo4j (optional)</td><td>A mirror of the current graph for Cypher queries.</td></tr>
+  </table></div>
+  <h3 class="sub">Rules applied before anything is shown</h3>
+  <ul>
+    <li><b>Redaction.</b> Findings, tests, paths and regression reasons in repositories the reader cannot access are removed, and the report says how many were omitted.</li>
+    <li><b>Newest wins.</b> A newer push to the same pull request sets <code>cancel_requested</code> on the running job. The worker checks that flag before it starts and again just before it writes to the pull request, so a slow old analysis does not overwrite a newer result.</li>
+    <li><b>Advisory.</b> By default TIA never blocks a merge.</li>
+  </ul>
+  <div class="example"><h3>In the example</h3>
+  <p>The PR comment for <code>contract</code> lists the breaking change, the affected services with their evidence, the tests to run under <i>Required verification</i>, and a Mermaid diagram with <code>payments-service</code> outlined as changed and its consumers as affected.</p></div>
+  <p class="where">Code: <a href="../tia/report.py">report.py</a>, <a href="../tia/reportpage.py">reportpage.py</a>, <a href="../tia/publish.py">publish.py</a>, <a href="../tia/github.py">github.py</a>, <a href="../tia/scmhosts.py">scmhosts.py</a>, <a href="../tia/ado.py">ado.py</a>, <a href="../tia/coordination.py">coordination.py</a>, <a href="../tia/mcp.py">mcp.py</a>, <a href="../tia/kfadapter.py">kfadapter.py</a>, <a href="../tia/analysis_service.py">analysis_service.py</a> (<code>github_pull_request</code> line 329)</p>
+</section>
+
+</main>
+
+<footer>
+  <p>Written from the code in <code>tia/</code> and the measured demo numbers in <a href="DEMO-WALKTHROUGH.md">DEMO-WALKTHROUGH.md</a>. Line numbers are as of 2026-11-16 and will drift as the code changes. Steps 7–8 run after steps 5–6 in the code (<code>impact.py</code> section 3), as shown here.</p>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement, strip = document.getElementById('strip');
+  var steps = Array.prototype.slice.call(document.querySelectorAll('section.step'));
+  var buttons = [], current = 0;
+  root.classList.add('js');
+
+  steps.forEach(function(sec, i){
+    sec.id = 'step-' + (i + 1);
+    var wrap = document.createElement('div'); wrap.className = 'stage';
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', sec.id);
+    var n = document.createElement('span'); n.className = 'n'; n.textContent = 'Step ' + (i + 1);
+    var t = document.createElement('span'); t.className = 't'; t.textContent = sec.getAttribute('data-t');
+    var s = document.createElement('span'); s.className = 's'; s.textContent = sec.getAttribute('data-s');
+    b.appendChild(n); b.appendChild(t); b.appendChild(s);
+    b.addEventListener('click', function(){ show(i, true); });
+    wrap.appendChild(b); strip.appendChild(wrap); buttons.push(b);
+    if (i < steps.length - 1){
+      var a = document.createElement('div'); a.className = 'arrow'; a.setAttribute('aria-hidden', 'true'); a.textContent = '→';
+      strip.appendChild(a);
+    }
+    var nav = document.createElement('div'); nav.className = 'nav';
+    var prev = document.createElement('button'); prev.type = 'button';
+    var next = document.createElement('button'); next.type = 'button';
+    if (i > 0){ prev.textContent = '← ' + steps[i - 1].getAttribute('data-t'); prev.addEventListener('click', function(){ show(i - 1, true); }); }
+    else { prev.style.visibility = 'hidden'; }
+    if (i < steps.length - 1){ next.textContent = steps[i + 1].getAttribute('data-t') + ' →'; next.addEventListener('click', function(){ show(i + 1, true); }); }
+    else { next.style.visibility = 'hidden'; }
+    nav.appendChild(prev); nav.appendChild(next); sec.appendChild(nav);
+  });
+
+  function show(i, scroll){
+    if (i < 0 || i >= steps.length) return;
+    current = i;
+    steps.forEach(function(sec, k){ sec.classList.toggle('active', k === i); });
+    buttons.forEach(function(b, k){ b.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    var b = buttons[i];
+    strip.scrollLeft = b.parentNode.offsetLeft - strip.clientWidth / 2 + b.offsetWidth / 2;
+    if (scroll){
+      if (root.classList.contains('all')) steps[i].scrollIntoView();
+      else window.scrollTo(0, 0);
+    }
+    try { history.replaceState(null, '', '#step-' + (i + 1)); } catch (e) {}
+  }
+
+  document.getElementById('toggleAll').addEventListener('click', function(){
+    var on = root.classList.toggle('all');
+    this.textContent = on ? 'Show one step at a time' : 'Show all steps on one page';
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowRight') show(current + 1, true);
+    else if (e.key === 'ArrowLeft') show(current - 1, true);
+  });
+
+  var m = /^#step-(\d+)$/.exec(location.hash);
+  show(m ? Math.min(steps.length, Math.max(1, parseInt(m[1], 10))) - 1 : 0, false);
+})();
+</script>
+</body>
+</html>

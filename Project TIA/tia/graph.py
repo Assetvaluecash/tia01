@@ -121,7 +121,8 @@ def build_graph(extracts: dict[str, RepoExtract], strip_prefixes: tuple = (),
             g.add_node(e.id, type="endpoint", repo=repo, service=ex.service, file=e.file, line=e.line,
                        method=e.method, path=e.norm_path, route=e.path)
         for c in ex.callsites:
-            g.add_node(c.id, type="callsite", repo=repo, service=ex.service, file=c.file, line=c.line)
+            g.add_node(c.id, type="callsite", repo=repo, service=ex.service, file=c.file, line=c.line,
+                       **({"client_pkg": c.client_pkg, "client_attr": c.client_attr} if c.client_pkg else {}))
         for t in ex.tests:
             g.add_node(t.id, type="test", repo=repo, service=ex.service, file=t.file, line=t.line, name=t.name)
 

@@ -189,6 +189,43 @@ entry_points:
   * An element that has no unique locator is flagged `position (fragile)`. An element repeated for each row of a list is flagged too.
 * **APIs the page calls**, linked to the analysed endpoints.
 
+**Expected responses.** Each endpoint's response in the graph ([GRAPH-SCHEMA.md](GRAPH-SCHEMA.md)) carries:
+* its success status, the error statuses its code answers with, and its fields;
+* **examples**, from two sources:
+  * the OpenAPI specification (`example` / `examples`), for success and error responses alike;
+  * what the repository's tests assert, for example `assert r.json()["status"] == "PENDING"`. These are marked *partial* when only some fields are checked.
+
+### Automation script for a user flow
+
+Tab **Automation script** in section 5 (or `POST /api/v1/automation/script`, or `tia script --repo ... --app web-portal --from /login --to /done`)
+writes a Playwright test for a flow from one screen to another. To do so, it:
+* finds the screens on the way from the links between them (`<Link to>`, `href`, `routerLink`, and `navigate(...)` / `router.push(...)` in code);
+* fills every input with a valid value from its rules, using the recommended locator;
+* clicks the button or link that moves on, waits for each API call the screen makes, and checks its success status.
+
+What the code cannot tell is listed under *To review* and marked `TODO` in the script, for example:
+* a route parameter's value;
+* dropdown values loaded at run time;
+* an element with only a position-based locator.
+
+Review the script before running it with `npx playwright test`.
+
+### Execution flow and design
+
+Tab **Execution flow** in section 5 (or `GET /api/v1/graph/flows?endpoint=...`, or `tia flows --repo ... --endpoint "METHOD /route"`)
+shows what an entry point runs, each step with its role in the design:
+* the controller that handles it;
+* the services and data access it calls;
+* the other services it calls;
+* the tables and entities it reads or writes;
+* the topics it publishes to, and the business rules it applies.
+
+Roles come from the folder (`controllers/`, `services/`, `repositories/`, `models/`), the class name (`...Controller`, `...Service`,
+`...Repository`), or what the code does (reads data, publishes events, calls another service).
+
+Below the flows, the **design** of each service lists its controllers, the models its API uses, and its main entities with the entry
+points that read or write them. The order of calls inside one function is not recorded, so steps under one function are listed by name.
+
 ## 4c. Technical coverage: are my test cases enough?
 
 `GET /api/v1/coverage` (or `tia coverage --repo ...`) lists the **technical aspects** each endpoint and page implies:

@@ -4,6 +4,8 @@ __pycache__/
 .tia/
 .venv/
 demo-data/
+showcase/
+tia-showcase.zip
 build/
 *.egg-info/
 *.log

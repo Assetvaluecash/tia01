@@ -176,4 +176,6 @@ def scrub_extract(part) -> int:
         part.ui_facts = clean(part.ui_facts)
     if part.manual_tests:
         part.manual_tests = clean(part.manual_tests, generic=True)
+    if part.api_examples:
+        part.api_examples = clean(part.api_examples, generic=True)
     return total

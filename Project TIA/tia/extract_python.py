@@ -696,6 +696,65 @@ class _FileVisitor:
             id=fid, repo=self.repo, file=self.path, name=node.name, line=node.lineno,
             imports=sorted(set(self.import_modules)), called=sorted(set(calls)), http_calls=http,
             statuses=asserted_statuses(node), literals=literal_values(node), bodies=bodies))
+        self.out.api_examples += self.asserted_responses(node)
+
+    def asserted_responses(self, node) -> list:
+        """Expected responses a test states: r = client.post("/x", ...); assert r.status_code == 201; assert r.json()["status"] == "PENDING"
+        (or body = r.json(); assert body["status"] == ...; or assert r.json() == {...}). One example per response variable."""
+        calls, alias = {}, {}
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Assign) and len(sub.targets) == 1 and isinstance(sub.targets[0], ast.Name) and isinstance(sub.value, ast.Call):
+                c, name = sub.value, sub.targets[0].id
+                if isinstance(c.func, ast.Attribute) and c.func.attr in HTTP_VERBS and c.args:
+                    owner = _unparse(c.func.value)
+                    s = _const_str(c.args[0])
+                    if (owner in TEST_CLIENT_NAMES or owner.endswith("client")) and s and s.startswith("/"):
+                        calls[name] = (c.func.attr.upper(), normalize_path(s, self.strip), sub.lineno)
+                elif isinstance(c.func, ast.Attribute) and c.func.attr == "json" and isinstance(c.func.value, ast.Name):
+                    alias[name] = c.func.value.id
+
+        def resp_var(n):
+            """The response variable an expression reads: r.json() / body (= r.json()) -> 'r'."""
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "json" and isinstance(n.func.value, ast.Name):
+                return n.func.value.id
+            if isinstance(n, ast.Name) and n.id in alias:
+                return alias[n.id]
+            return None
+
+        got: dict = {}
+        for a in ast.walk(node):
+            if not (isinstance(a, ast.Assert) and isinstance(a.test, ast.Compare) and len(a.test.ops) == 1 and isinstance(a.test.ops[0], ast.Eq)):
+                continue
+            left, right = a.test.left, a.test.comparators[0]
+            if isinstance(left, ast.Attribute) and left.attr == "status_code" and isinstance(left.value, ast.Name):
+                st = _status_of(right)
+                if st:
+                    got.setdefault(left.value.id, {})["status"] = st
+                continue
+            try:
+                value = ast.literal_eval(right)
+            except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+                continue
+            var = resp_var(left)
+            if var:
+                if isinstance(value, dict):
+                    got.setdefault(var, {})["full"] = value
+                continue
+            if isinstance(left, ast.Subscript):
+                var, key = resp_var(left.value), _const_str(left.slice)
+                if var and key is not None:
+                    got.setdefault(var, {}).setdefault("fields", {})[key] = value
+        out = []
+        for var, g in sorted(got.items()):
+            if var not in calls or not ("full" in g or g.get("fields")):
+                continue
+            method, path, line = calls[var]
+            body = g.get("full") or g["fields"]
+            if len(json.dumps(body, default=str)) > 4000:
+                continue
+            out.append({"method": method, "norm_path": path, "status": g.get("status"), "body": body, "partial": "full" not in g,
+                        "source": "test", "test": node.name, "file": self.path, "line": line})
+        return out
 
 
 BINARY_EXT = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar", ".jar", ".class", ".exe", ".dll",
@@ -1042,6 +1101,7 @@ def assemble(repo: str, commit: str, tree_paths: list, smap: dict, service: str,
             out.enums.update(part.enums)
             out.ui_facts += part.ui_facts
             out.manual_tests += part.manual_tests
+            out.api_examples += part.api_examples
             out.events += part.events
             out.event_schemas += part.event_schemas
             out.sql_access += part.sql_access

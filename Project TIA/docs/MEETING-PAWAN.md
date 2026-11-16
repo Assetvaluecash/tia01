@@ -39,10 +39,10 @@ Checked against the code in `Project TIA/tia/` on 15 Nov 2026.
 | 1 | Main vs feature branch blast radius | **Yes** | `--base` / `--head`, merge-base, PR webhooks ([analysis_service.py](../tia/analysis_service.py)). The test scope lists every entry point the change reaches, with why and the change effect ([testscope.py](../tia/testscope.py)). |
 | 1 | "These 4 of your 10 functional test cases" | **Built 15 Nov 2026** (simulated) | [regression.py](../tia/regression.py): every analysis reports *Regression-test N of your M test case(s)*. Each written case is selected (with the reached entry point, the change effect and why), not affected, unmapped (review by hand) or new in this change. The report, PR comment, report page, web UI, MCP `get_test_scope` and KF `QueryResponse` carry it. Demo: `tools/demo.py --landscape regression` (4 / 3 / 2 of 10). Matching is by the entry point or screen named in the case; matching through KF sub-functions waits on step 0. |
 | 1a | Explained in the tester's terms | **Built 15 Nov 2026** (simulated) | [configkeys.py](../tia/configkeys.py): a configuration key changed in `.env`, `.properties`, YAML, INI, TOML or JSON reaches the functions that read it. A newly read environment variable is reported with where it is (not) set and which other functions read it. Values are never shown. |
-| 2 | Application > Screen > Element > Locator in the graph | **Built 15 Nov 2026** | Application, Screen, Element and Locator nodes ([graphstructure.py](../tia/graphstructure.py)). An element carries its label, mandatory flag, limits and dropdown values; its locators carry CSS, XPath and Playwright forms, whether each is unique, and which to use. Screen `CALLS_API` endpoint. Also in Neo4j. Still missing: the order of screens in a flow, and a generator that writes the script. |
-| 3 | API > Method > Request / Response / Definitions in the graph | **Built 15 Nov 2026**, except examples | Endpoint `ACCEPTS` Request, Endpoint `RETURNS` Response, and each `HAS_FIELD` Field with its place (path, query, header, body), type, required flag, allowed values and limits. The response carries success status, error statuses and shape. **Expected-response examples** are still not captured. |
+| 2 | Application > Screen > Element > Locator in the graph | **Built 15 Nov 2026** | Application, Screen, Element and Locator nodes ([graphstructure.py](../tia/graphstructure.py)), with label, mandatory flag, limits, dropdown values and CSS / XPath / Playwright locators. Screen `NAVIGATES_TO` screen (links and navigation calls), screen `CALLS_API` endpoint. The **script generator** ([scripts.py](../tia/scripts.py)) writes a Playwright test for a flow from screen A to screen B (web tab *Automation script*, `POST /api/v1/automation/script`, `tia script`); what the code cannot tell is marked TODO. Also in Neo4j. |
+| 3 | API > Method > Request / Response / Definitions in the graph | **Built 15 Nov 2026** | Endpoint `ACCEPTS` Request, Endpoint `RETURNS` Response, each `HAS_FIELD` Field (place, type, required, allowed values, limits). The response has its success status, error statuses and shape, and `HAS_EXAMPLE` **examples**: from OpenAPI `example(s)` and from what tests assert about the response. Calling an API from Pulse is Pulse's side: everything a request needs is in the graph. |
 | — | Business rules as nodes | **Built 15 Nov 2026** | Function `APPLIES_RULE` Rule (the condition and the fields it tests). A rule can be linked to a KF rule by its expression through the mapping. |
-| 4 | Higher-level view: execution flow, entities, controllers/models | **Partly** | [graphview.py](../tia/graphview.py) gives service and endpoint levels, and [structure.py](../tia/structure.py) gives folder-based layers (controllers / services / models). There is **no execution-flow view** (entry point > controller > service > repository > table) and no entity/model summary. |
+| 4 | Higher-level view: execution flow, entities, controllers/models | **Built 15 Nov 2026** | [flows.py](../tia/flows.py): per entry point, controller -> services -> data access -> other services / data / topics / rules, each step with its design role; per service, controllers, models and main entities (web tab *Execution flow*, `GET /api/v1/graph/flows`, `tia flows`). The order of calls inside one function is not recorded. |
 
 **In short (updated 15 Nov 2026):** the representation is fixed, written down and enforced ([GRAPH-SCHEMA.md](GRAPH-SCHEMA.md)). It
 covers use case 1, automation, API testing and business rules, and it is mirrored into Neo4j. What is still open needs the KF team:
@@ -50,7 +50,7 @@ covers use case 1, automation, API testing and business rules, and it is mirrore
 - the mapping of TIA nodes to KF nodes;
 - a run against KF's own 2.5 instance.
 
-Open on TIA's side: expected-response examples, the order of screens in a flow, and the execution-flow view (item 4).
+Open on TIA's side: nothing from the meeting. To try all of it, the client showcase ([SHOWCASE.md](SHOWCASE.md)) has one landscape with six scenarios as upload zips and git repositories, checked on every test run.
 
 ---
 
@@ -80,16 +80,16 @@ Open on TIA's side: expected-response examples, the order of screens in a flow, 
 7. **Detect config and env-var changes** (new or changed environment variables and config keys, and the code that reads them), so the
    "he also added an env variable" case is reported.
 
-### Use case 2: automation (item 8: the graph part was built 15 Nov 2026; script generation is not)
+### Use case 2: automation (item 8 built 15 Nov 2026, script generator included)
 8. **Store UI as graph nodes:** `Application > Screen > Element > Locator` from what `extract_ui.py` already extracts. Add an agent or
    retrieval path that, given "screen A to screen B", returns the screens, elements and best locators for script generation.
 
-### Use case 3: API (item 9 built 15 Nov 2026, except expected-response examples)
+### Use case 3: API (item 9 built 15 Nov 2026, examples included)
 9. **Store API structure as nodes:** `Endpoint > Method > RequestBody > Field (definition: type, length, pattern, enum, mandatory)` and
    `Response > Field`. Capture **example / expected responses** from OpenAPI `example(s)` and from tests. Expose them so Pulse
    can build and send a request.
 
-### Higher-level view
+### Higher-level view (item 10 built 15 Nov 2026)
 10. **Add an execution-flow and design view:** entry point > controller > service > repository > table, plus the main entities and models,
     without call-level detail.
 

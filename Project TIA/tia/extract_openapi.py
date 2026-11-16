@@ -67,6 +67,32 @@ def _schema(name: str, s: dict, repo: str, service: str, path: str, line: int) -
                   fields={k: json_field(v if isinstance(v, dict) else {}, k in req) for k, v in props.items()}, file=path, line=line)
 
 
+MAX_EXAMPLE = 4000          # characters of JSON: an example is a sample, not a data dump
+
+
+def _examples(resp) -> list:
+    """The example bodies an OpenAPI response declares: content.<json>.example, content.<json>.examples.*.value, the schema's
+    example (OpenAPI 3), or examples.<mime> (Swagger 2). Bounded in size; an $ref to an external example is not fetched."""
+    if not isinstance(resp, dict):
+        return []
+    out = []
+    for mime, c in (resp.get("content") or {}).items():
+        if "json" not in str(mime) or not isinstance(c, dict):
+            continue
+        if "example" in c:
+            out.append(c["example"])
+        for ex in (c.get("examples") or {}).values():
+            if isinstance(ex, dict) and "value" in ex:
+                out.append(ex["value"])
+        sch = c.get("schema")
+        if not out and isinstance(sch, dict) and "example" in sch:
+            out.append(sch["example"])
+    for mime, ex in (resp.get("examples") or {}).items():               # Swagger 2
+        if "json" in str(mime):
+            out.append(ex)
+    return [x for x in out if len(json.dumps(x, default=str)) <= MAX_EXAMPLE]
+
+
 def _line_of(text: str, needle: str) -> int:
     i = text.find(needle)
     return text.count("\n", 0, i) + 1 if i >= 0 else 1
@@ -137,6 +163,11 @@ def extract_openapi(repo: str, service: str, path: str, text: str, strip: tuple 
                         if isinstance(inner, dict) and "$ref" in inner:
                             resp = _ref_name(inner["$ref"])
                     break
+            for code, r in (op.get("responses") or {}).items():          # example / expected responses, success and error alike
+                for ex_body in _examples(r):
+                    out.api_examples.append({"method": m.upper(), "norm_path": np_, "status": int(code) if str(code).isdigit() else None,
+                                             "body": ex_body, "partial": False, "source": "openapi", "file": path,
+                                             "line": _line_of(text, f"{p}:")})
             sec = op.get("security", root_sec)
             auth = sorted({f"security:{k}" + (f"[{','.join(v)}]" if v else "") for req in (sec or []) if isinstance(req, dict) for k, v in req.items()})
             out.endpoints.append(Endpoint(id=f"{service}:{m.upper()} {np_}", service=service, repo=repo, method=m.upper(), path=full, norm_path=np_,

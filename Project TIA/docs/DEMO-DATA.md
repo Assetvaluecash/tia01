@@ -310,6 +310,13 @@ python tools/demo.py --landscape regression --branch feature/holds
 `tests/test_regression.py` checks these numbers on every test run. Add `--format json` to see the full `test_scope.regression`
 and `test_scope.config_checks`.
 
+## 9. The client showcase: every feature on one landscape
+
+For a reviewer or a client who wants to try everything, use [SHOWCASE.md](SHOWCASE.md). It is a five-repository company landscape with
+six scenarios, as upload zips and git repositories, plus the evidence. `python tools/showcase.py --out showcase` writes it, also as
+`tia-showcase.zip`. Its README says what to do in every section of the web page and what you should see; `tests/test_showcase.py` checks
+all of it.
+
 ## If your screen shows other numbers
 
 | Cause | What happens | Fix |

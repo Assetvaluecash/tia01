@@ -38,6 +38,8 @@ from .testscope import labels_of, rule_gaps, shared_components
 from .automation import api_inventory, summarise_api, ui_inventory
 from .coverage import assess_test_case, coverage_report, summary_of as summary_of_coverage
 from .graph import build_graph
+from .flows import design as design_of, flows as flows_of, render as render_flow
+from .scripts import generate as generate_script
 from .evidence import (KINDS as EVIDENCE_KINDS, RESULTS, EvidenceError, EvidenceStore, parse_builds, parse_coverage, parse_deployments,
                        parse_edges, parse_junit, parse_otlp, parse_test_json)
 from .enrich import deployment_view
@@ -155,6 +157,16 @@ class TestCaseIn(BaseModel):
     expected: str = Field("", max_length=5000)
     entry_point: str = Field("", max_length=500)          # e.g. "POST /accounts/{id}/payments" or a page route
     id: Optional[str] = Field(None, max_length=200)
+
+
+class ScriptIn(BaseModel):
+    """POST /api/v1/automation/script: a user flow from one screen to another."""
+    repo: str = Field(description="the repository whose front end the flow runs in")
+    start: str = Field(alias="from", description="route of the first screen, e.g. /login")
+    end: str = Field(alias="to", description="route of the last screen, e.g. /done")
+    base_url: str = "http://localhost:3000"
+
+    model_config = {"populate_by_name": True}
 
 
 class AnalysisIn(BaseModel):
@@ -995,6 +1007,33 @@ def create_app(db: Database, tenant_id: str, workspace: str = ".tia-data/repos",
         ex, _ = tester_scope(repos, x_tia_readable_repos)
         items = api_inventory(ex, labels_of(ex))
         return scrub_json({"endpoints": items, "summary": summarise_api(items)})[0]
+
+    @app.post("/api/v1/automation/script")
+    def automation_script(body: ScriptIn, x_tia_readable_repos: Optional[str] = Header(None)):
+        """A Playwright test for a user flow from one screen to another: the screens on the way (from the links between them), each
+        input filled with a valid value from its rules, the recommended locators, and a wait for each API the screens call. What the code
+        cannot tell is listed in `unknowns` and marked TODO in the script."""
+        ex, g = tester_scope(None, x_tia_readable_repos)
+        if body.repo not in ex:
+            raise HTTPException(404, f"repository '{body.repo}' is not registered")
+        out = generate_script(g, ex, body.repo, body.start, body.end, body.base_url)
+        if out.get("error"):
+            raise HTTPException(404, out["error"] + ". Screens known: " + ", ".join(out["screens_known"]) + ". " + out["note"])
+        return scrub_json(out)[0]
+
+    @app.get("/api/v1/graph/flows")
+    def graph_flows(endpoint: Optional[str] = None, repos: Optional[str] = None, depth: int = 8,
+                    x_tia_readable_repos: Optional[str] = Header(None)):
+        """The execution flow of entry points (handler, the code it runs with each step's design role, the services it calls, the data it
+        reads and writes, the rules it applies) and the design of each service (controllers, models, main entities)."""
+        ex, g = tester_scope(repos, x_tia_readable_repos)
+        if not ex:
+            return {"flows": [], "design": []}
+        one = repos.split(",")[0].strip() if repos and "," not in repos else None
+        rows = flows_of(g, endpoint, one, max(1, min(depth, 20)))
+        if endpoint and not rows:
+            raise HTTPException(404, f"no analysed entry point '{endpoint}' (write it as METHOD /route)")
+        return {"flows": rows, "design": design_of(g, one), "text": [render_flow(f) for f in rows]}
 
     @app.get("/api/v1/automation/ui")
     def automation_ui(repos: Optional[str] = None, x_tia_readable_repos: Optional[str] = Header(None)):

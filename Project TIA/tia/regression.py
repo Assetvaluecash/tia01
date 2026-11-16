@@ -55,13 +55,14 @@ def _pages(extracts: dict) -> list:
     return out
 
 
-def targets_of(tc: dict, endpoints: list, pages: list) -> tuple[set, list]:
-    """The endpoint nodes a written case tests: those it names, and those called by the pages it names -> (nodes, [(page, node)])."""
+def targets_of(tc: dict, endpoints: list, pages: list) -> tuple[set, list, list]:
+    """The endpoint nodes a written case tests: those it names, and those called by the pages it names
+    -> (nodes, [(page, node)], [pages named])."""
     on_page = [p for p in pages if p["page"] and _page_matches(tc, p)]
     names_method = bool(METHOD.match(tc.get("entry_point") or ""))
     direct = {e["node"] for e in endpoints if (names_method or not on_page) and _entry_matches(tc, e)}
     via_page = [(p, n) for p in on_page for n in p["calls"]]
-    return direct | {n for _, n in via_page}, via_page
+    return direct | {n for _, n in via_page}, via_page, on_page
 
 
 def select(scope: dict, extracts: dict, target: str, head_cases: list | None = None) -> dict:
@@ -72,7 +73,12 @@ def select(scope: dict, extracts: dict, target: str, head_cases: list | None = N
     suite = [dict(tc, repo=r) for r, ex in sorted(extracts.items()) for tc in ex.manual_tests]
     selected, not_selected, unmapped = [], [], []
     for tc in suite:
-        nodes, via_page = targets_of(tc, endpoints, pages)
+        nodes, via_page, named_pages = targets_of(tc, endpoints, pages)
+        if not nodes and named_pages:
+            screens = sorted({p["page"] for p in named_pages})
+            not_selected.append({**_case(tc), "tests": screens,
+                                 "reason": f"tests screen {', '.join(screens)}, which calls no API: a change to the APIs does not reach it"})
+            continue
         if not nodes:
             unmapped.append({**_case(tc), "reason": "names no entry point, route or page TIA can match: review it by hand"})
             continue

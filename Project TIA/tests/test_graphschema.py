@@ -19,7 +19,7 @@ from tia.impact import AnalysisRequest, _extract, analyze
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ("build_fixture", "build_lanes_fixture", "build_java_fixture", "build_data_fixture", "build_events_fixture",
-            "build_polyglot_fixture", "build_sql_fixture", "build_streams_fixture", "build_regression_fixture")
+            "build_polyglot_fixture", "build_sql_fixture", "build_streams_fixture", "build_regression_fixture", "build_showcase_fixture")
 
 
 @pytest.fixture(scope="module")
@@ -53,7 +53,8 @@ def test_the_schema_lists_only_real_properties_and_every_type_is_built(landscape
 def test_the_engine_walks_exactly_what_the_schema_says():
     assert set(_IMPACT_DST) == {r for r, e in EDGE_TYPES.items() if e["impact"] == "dst->src"}
     assert set(_IMPACT_SRC) == {"HANDLES", "PUBLISHES"}
-    new = {"HAS_APPLICATION", "HAS_SCREEN", "HAS_ELEMENT", "LOCATED_BY", "CALLS_API", "ACCEPTS", "RETURNS", "HAS_FIELD", "APPLIES_RULE"}
+    new = {"HAS_APPLICATION", "HAS_SCREEN", "HAS_ELEMENT", "LOCATED_BY", "CALLS_API", "NAVIGATES_TO", "ACCEPTS", "RETURNS", "HAS_FIELD",
+           "HAS_EXAMPLE", "APPLIES_RULE"}
     assert all(EDGE_TYPES[r]["impact"] is None for r in new)       # use-case structure never carries impact
 
 

@@ -18,6 +18,7 @@ Every document about TIA: what it must do (PRD), how it is designed and built, h
 | [Operations: HA, backup, DR](OPERATIONS.md) · [Compliance mapping](COMPLIANCE.md) · [Security](SECURITY.md) | Markdown | RPO/RTO runbook, SOC 2 / ISO 27001 control mapping, threat model. |
 | [Language adapter SDK](ADAPTER-SDK.md) · [Graph store decision](GRAPH-STORE.md) · [Neo4j mirror](NEO4J.md) · [Performance](PERFORMANCE.md) · [Release gates](RELEASE-GATES.md) | Markdown | Adding languages; why PostgreSQL holds the graph; the Neo4j mirror for Knowledge Fabric; benchmark results; gate assessment. |
 | [**Graph schema**](GRAPH-SCHEMA.md) | Markdown (generated) | The fixed representation: every node type and relationship, what each connects, which ones carry impact, and how each use case (regression, automation, API testing, rules, Knowledge Fabric) walks it. |
+| [**Client showcase**](SHOWCASE.md) | Markdown (generated) | One landscape (Northwind Pay) that exercises every feature: six scenarios as upload zips and git repositories, evidence for every web-page section, and the exact result to expect from each. Made by `python tools/showcase.py`. |
 | [Meeting with Pawan](MEETING-PAWAN.md) | Markdown | Transcript of the use-case review, what TIA does against each ask, and what is still open. |
 
 > **Tip:** double-click any `.html` file in Windows Explorer, or open it in any browser. The as-built architecture and the demo walkthrough work offline.

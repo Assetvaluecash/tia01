@@ -216,6 +216,16 @@ Request body:
 | `depth` | query | integer | no |
 | `limit` | query | integer | no |
 
+### `GET /api/v1/graph/flows`
+
+**Needs:** `read` (`viewer`, `engineer`, `release_manager`, `auditor`, `administrator`).  The execution flow of entry points (handler, the code it runs with each step's design role, the services it calls, the data it reads and writes, the rules it applies) and the design of each service (controllers, models, main entities).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `endpoint` | query | string|null | no |
+| `repos` | query | string|null | no |
+| `depth` | query | integer | no |
+
 ### `POST /api/v1/graph/neo4j-sync`
 
 **Needs:** `repo_write` (`engineer`, `release_manager`, `administrator`).  Mirror the current landscape graph (and the written test cases with the endpoints they test) into Neo4j for Knowledge Fabric and Cypher. The mirror holds every repository of the tenant, so only a caller who may read all of them can start it.
@@ -923,6 +933,19 @@ Request body:
 | Parameter | In | Type | Required |
 |---|---|---|---|
 | `repos` | query | string|null | no |
+
+### `POST /api/v1/automation/script`
+
+**Needs:** `read` (`viewer`, `engineer`, `release_manager`, `auditor`, `administrator`).  A Playwright test for a user flow from one screen to another: the screens on the way (from the links between them), each input filled with a valid value from its rules, the recommended locators, and a wait for each API the screens call. What the code cannot tell is listed in `unknowns` and marked TODO in the script.
+
+Request body:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `repo` | string | yes | the repository whose front end the flow runs in |
+| `from` | string | yes | route of the first screen, e.g. /login |
+| `to` | string | yes | route of the last screen, e.g. /done |
+| `base_url` | string | no |  |
 
 ### `GET /api/v1/automation/ui`
 

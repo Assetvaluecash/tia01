@@ -450,6 +450,29 @@ def api_calls(text: str) -> list:
     return sorted(out, key=lambda c: (c["line"], c["method"], c["path"]))
 
 
+NAV_MARKUP = re.compile(r"""(?:\b(?:to|href|routerLink))\s*=\s*\{?\s*["'`](/[^"'`\s]*)["'`]|\[routerLink\]\s*=\s*"\[\s*'(/[^']*)'""")
+NAV_CODE = re.compile(r"""(?:\b(?:navigate|navigateByUrl)|\b(?:router|history|\$router)\s*\.\s*(?:push|replace))\s*\(\s*\[?\s*["'`](/[^"'`\s]*)["'`]""")
+
+
+def navigations(text: str, markup: bool, code: bool) -> list:
+    """Where a screen sends the user: links in markup (<Link to>, <a href>, routerLink) and navigation calls in code (navigate('/x'),
+    router.navigate(['/x']), router.push / history.push). Only paths inside the application (starting with '/'); query strings dropped."""
+    out = []
+    for rx, on, via in ((NAV_MARKUP, markup, "link"), (NAV_CODE, code, "code")):
+        if not on:
+            continue
+        for m in rx.finditer(text):
+            p = next(g for g in m.groups() if g)
+            p = re.sub(r"\$\{[^}]*\}", "{}", p).split("?", 1)[0].split("#", 1)[0] or "/"
+            out.append({"to": p, "via": via, "line": text.count("\n", 0, m.start()) + 1})
+    seen, uniq = set(), []
+    for n in sorted(out, key=lambda n: (n["line"], n["to"])):
+        if (n["to"], n["via"]) not in seen:
+            seen.add((n["to"], n["via"]))
+            uniq.append(n)
+    return uniq
+
+
 def routes(text: str, toks: Optional[list] = None) -> list:
     out = []
     for m in re.finditer(r"""path\s*:\s*['"`]([^'"`]*)['"`]\s*,\s*(?:component\s*:\s*([A-Z][\w$]*)|element\s*:\s*<\s*([A-Z][\w$]*))""", text):
@@ -479,7 +502,8 @@ def extract_ui_file(path: str, text: str) -> list:
         framework = "vue" if low.endswith(".vue") else "angular" if re.search(r"formControlName|\*ngFor|\(click\)|\[\(ngModel\)\]|routerLink", text) else "html"
         els = template_elements(text if not low.endswith(".vue") else (re.search(r"<template>(.*)</template>", text, re.S) or [None, text])[1])
         if els:
-            facts.append({"kind": "template", "file": path, "framework": framework, "elements": els})
+            facts.append({"kind": "template", "file": path, "framework": framework, "elements": els,
+                          "navigations": navigations(text, True, False)})
     if low.endswith(SCRIPT_EXT + (".jsx", ".tsx")):
         comp = re.search(r"@Component\s*\(\s*\{", text)
         rts = routes(text, toks)
@@ -492,7 +516,8 @@ def extract_ui_file(path: str, text: str) -> list:
             fact = {"kind": "component", "file": path, "framework": "angular", "class": cls.group(1) if cls else None,
                     "selector": sel.group(1) if sel else None,
                     "template_file": posixpath.normpath(posixpath.join(posixpath.dirname(path), tu.group(1))) if tu else (path if inline else None),
-                    "controls": form_controls(text), "arrays": arrays(text), "api_calls": api_calls(text)}
+                    "controls": form_controls(text), "arrays": arrays(text), "api_calls": api_calls(text),
+                    "navigations": navigations(text, False, True)}
             facts.append(fact)
             if inline:
                 els = template_elements(inline.group(1))
@@ -502,9 +527,10 @@ def extract_ui_file(path: str, text: str) -> list:
             name = re.search(r"export\s+default\s+(?:function\s+)?([A-Z][\w$]*)", text) or re.search(r"(?:function|const)\s+([A-Z][\w$]*)", text)
             els = template_elements(text)
             if els:
-                facts.append({"kind": "template", "file": path, "framework": "react", "elements": els})
+                facts.append({"kind": "template", "file": path, "framework": "react", "elements": els, "navigations": navigations(text, True, False)})
                 facts.append({"kind": "component", "file": path, "framework": "react", "class": name.group(1) if name else None,
-                              "selector": None, "template_file": path, "controls": {}, "arrays": arrays(text), "api_calls": api_calls(text)})
+                              "selector": None, "template_file": path, "controls": {}, "arrays": arrays(text), "api_calls": api_calls(text),
+                              "navigations": navigations(text, False, True)})
         for r in rts:
             facts.append({"kind": "route", "file": path, **r})
     return facts
@@ -617,4 +643,5 @@ def _page(repo: str, t: dict, comp: Optional[dict], route: Optional[str]) -> dic
     name = route or (comp or {}).get("class") or posixpath.basename(t["file"])
     return {"page": name, "route": route, "component": (comp or {}).get("class"), "framework": t["framework"], "repo": repo,
             "files": sorted({t["file"], (comp or {}).get("file") or t["file"]}), "elements": out,
-            "api_calls": [{**c, "norm_path": normalize_path(c["path"])} for c in (comp or {}).get("api_calls", [])]}
+            "api_calls": [{**c, "norm_path": normalize_path(c["path"])} for c in (comp or {}).get("api_calls", [])],
+            "navigations": sorted(t.get("navigations", []) + (comp or {}).get("navigations", []), key=lambda n: (n["line"], n["to"]))}

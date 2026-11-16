@@ -137,9 +137,14 @@ def project(g, tenant: str, graph_version: str, extracts: Optional[dict] = None)
                                                                   **{f: tc.get(f) or "" for f in ("title", "entry_point", "priority", "steps",
                                                                                                     "expected", "file")},
                                                                   "line": tc.get("line")}})
-                nodes_hit, via_page = targets_of(tc, endpoints, pages)
+                nodes_hit, via_page, named = targets_of(tc, endpoints, pages)
                 page_of = {n: p["page"] for p, n in via_page}
                 status = "source_confirmed" if (tc.get("entry_point") or "").strip() else "inferred"
+                for p in named:                                       # the screen itself (TiaScreen), as well as the APIs behind it
+                    sid = f"{p['repo']}:screen:{p['page']}"
+                    if sid in g.nodes:
+                        covers.append({"src": k(tid), "dst": k(sid), "rkey": f"{tenant}|{tid}|COVERS|{sid}",
+                                       "props": {"status": status, "strategy": "screen-named"}})
                 for n in sorted(nodes_hit):
                     if n in g.nodes:
                         covers.append({"src": k(tid), "dst": k(n), "rkey": f"{tenant}|{tid}|COVERS|{n}",

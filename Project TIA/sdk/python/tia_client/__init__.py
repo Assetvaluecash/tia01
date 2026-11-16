@@ -180,6 +180,19 @@ class TiaClient:
         """One test case as a query: what it covers and what it misses."""
         return self.call("POST", "/api/v1/coverage/test-case", json_body={"title": title, "entry_point": entry_point, "steps": steps, "expected": expected})
 
+    def automation_script(self, repo: str, start: str, end: str, base_url: str = "http://localhost:3000") -> dict:
+        """A Playwright test for a user flow from screen `start` to screen `end` (routes) in the front end `repo`: 'script', 'unknowns'."""
+        return self.call("POST", "/api/v1/automation/script", json_body={"repo": repo, "from": start, "to": end, "base_url": base_url})
+
+    def execution_flow(self, endpoint: Optional[str] = None, repositories: Optional[list] = None, depth: int = 8) -> dict:
+        """The execution flow of entry points ('METHOD /route', or all) and the design of each service: 'flows', 'design', 'text'."""
+        return self.call("GET", "/api/v1/graph/flows", params={"endpoint": endpoint, "depth": depth,
+                                                               "repos": ",".join(repositories) if repositories else None})
+
+    def neo4j_sync(self) -> dict:
+        """Mirror the current landscape graph (and the written test cases) into the Neo4j database TIA is configured for."""
+        return self.call("POST", "/api/v1/graph/neo4j-sync")
+
     def shared_components(self, limit: int = 100) -> dict:
         return self.call("GET", "/api/v1/graph/shared-components", params={"limit": limit})
 

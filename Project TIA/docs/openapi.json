@@ -899,6 +899,38 @@
     "title": "RetrievalMetadata",
     "type": "object"
    },
+   "ScriptIn": {
+    "description": "POST /api/v1/automation/script: a user flow from one screen to another.",
+    "properties": {
+     "base_url": {
+      "default": "http://localhost:3000",
+      "title": "Base Url",
+      "type": "string"
+     },
+     "from": {
+      "description": "route of the first screen, e.g. /login",
+      "title": "From",
+      "type": "string"
+     },
+     "repo": {
+      "description": "the repository whose front end the flow runs in",
+      "title": "Repo",
+      "type": "string"
+     },
+     "to": {
+      "description": "route of the last screen, e.g. /done",
+      "title": "To",
+      "type": "string"
+     }
+    },
+    "required": [
+     "repo",
+     "from",
+     "to"
+    ],
+    "title": "ScriptIn",
+    "type": "object"
+   },
    "SyncIn": {
     "properties": {
      "token": {
@@ -1822,6 +1854,62 @@
      }
     },
     "summary": "Automation Api",
+    "x-tia-permission": "read"
+   }
+  },
+  "/api/v1/automation/script": {
+   "post": {
+    "description": "A Playwright test for a user flow from one screen to another: the screens on the way (from the links between them), each\ninput filled with a valid value from its rules, the recommended locators, and a wait for each API the screens call. What the code\ncannot tell is listed in `unknowns` and marked TODO in the script.",
+    "operationId": "automation_script_api_v1_automation_script_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "x-tia-readable-repos",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Tia-Readable-Repos"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ScriptIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Automation Script",
     "x-tia-permission": "read"
    }
   },
@@ -2824,6 +2912,94 @@
      }
     },
     "summary": "Graph",
+    "x-tia-permission": "read"
+   }
+  },
+  "/api/v1/graph/flows": {
+   "get": {
+    "description": "The execution flow of entry points (handler, the code it runs with each step's design role, the services it calls, the data it\nreads and writes, the rules it applies) and the design of each service (controllers, models, main entities).",
+    "operationId": "graph_flows_api_v1_graph_flows_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "endpoint",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Endpoint"
+      }
+     },
+     {
+      "in": "query",
+      "name": "repos",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Repos"
+      }
+     },
+     {
+      "in": "query",
+      "name": "depth",
+      "required": false,
+      "schema": {
+       "default": 8,
+       "title": "Depth",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "x-tia-readable-repos",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Tia-Readable-Repos"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Graph Flows",
     "x-tia-permission": "read"
    }
   },

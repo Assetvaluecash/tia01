@@ -58,8 +58,9 @@ def test_projection_keeps_tia_names_directions_and_evidence(fx):
     assert len(cases) == 10 and cases["TC-03"]["props"]["entry_point"] == "/pay"
     cov = {(r["src"].split("|")[1], r["dst"].split("|")[1]): r["props"] for r in p["covers"]}
     assert not any(src.endswith(":TC-10") for src, _ in cov)                                 # a case naming nothing is not linked
-    tc3 = next(v for (s, _), v in cov.items() if s.endswith(":TC-03"))
-    assert tc3 == {"status": "source_confirmed", "strategy": "screen", "via_page": "/pay"}
+    tc3 = {d: v for (s, d), v in cov.items() if s.endswith(":TC-03")}
+    assert tc3 == {"payments-app:POST /payments": {"status": "source_confirmed", "strategy": "screen", "via_page": "/pay"},
+                   "payments-app:screen:/pay": {"status": "source_confirmed", "strategy": "screen-named"}}   # the API behind it, and the screen
 
 
 def test_configuration_comes_from_the_environment_without_a_default_password():

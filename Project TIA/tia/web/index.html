@@ -243,6 +243,8 @@
     <button data-ttab="api">Automation: APIs</button>
     <button data-ttab="ui">Automation: pages &amp; locators</button>
     <button data-ttab="tc">Check one test case</button>
+    <button data-ttab="flow">Execution flow</button>
+    <button data-ttab="script">Automation script</button>
   </div>
   <div id="ttab-shared"><p><button class="sec" id="tshared">Refresh</button> <span id="tsharedmsg" class="mut"></span></p><div id="tsharedout"></div></div>
   <div id="ttab-cov" class="hidden"><p><button class="sec" id="tcov">Refresh</button> <span id="tcovmsg" class="mut"></span></p><div id="tcovout"></div></div>
@@ -257,6 +259,25 @@
     <label>Expected result</label><textarea id="tcexpected" class="json" style="height:50px" maxlength="5000"></textarea>
     <p><button id="tccheck">Check coverage of this test case</button> <span id="tcmsg"></span></p>
     <div id="tcout"></div>
+  </div>
+  <div id="ttab-flow" class="hidden">
+    <p class="mut" style="margin:0 0 6px">What an entry point runs: the controller, the services and data access it calls, the other services, data, topics and business rules it reaches; and each service's design (controllers, models, main entities).</p>
+    <div class="row">
+      <div><label>Entry point (METHOD /route, empty for all)</label><input id="flowep" maxlength="500" placeholder="POST /payments"></div>
+      <div><label>Repository (optional)</label><input id="flowrepo" maxlength="200"></div>
+    </div>
+    <p><button id="flowrun">Show execution flow</button> <span id="flowmsg"></span></p>
+    <div id="flowout"></div>
+  </div>
+  <div id="ttab-script" class="hidden">
+    <p class="mut" style="margin:0 0 6px">A Playwright test for a user flow: the screens on the way (from the links between them), each input filled with a valid value from its rules, the recommended locators, and a wait for each API call. What the code cannot tell is marked TODO.</p>
+    <div class="row">
+      <div><label>Front-end repository</label><input id="scrrepo" maxlength="200" placeholder="web-portal"></div>
+      <div><label>From screen (route)</label><input id="scrfrom" maxlength="300" placeholder="/login"></div>
+      <div><label>To screen (route)</label><input id="scrto" maxlength="300" placeholder="/done"></div>
+    </div>
+    <p><button id="scrrun">Generate script</button> <span id="scrmsg"></span></p>
+    <div id="scrout"></div>
   </div>
 </section>
 <section id="relsec">
@@ -955,7 +976,7 @@ function scopeCore(ts) {
 }
 document.querySelectorAll("[data-ttab]").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-ttab]").forEach(x => x.classList.toggle("on", x === b));
-  ["shared","cov","api","ui","tc"].forEach(t => $("ttab-" + t).classList.toggle("hidden", t !== b.dataset.ttab));
+  ["shared","cov","api","ui","tc","flow","script"].forEach(t => $("ttab-" + t).classList.toggle("hidden", t !== b.dataset.ttab));
   const load = {shared: tShared, cov: tCov, api: tApi, ui: tUi}[b.dataset.ttab];
   if (load && !$("t" + b.dataset.ttab + "out").dataset.loaded) load();
 });
@@ -1059,6 +1080,34 @@ $("kfjson").onclick = async () => {
   busy($("kfjson"), false);
 };
 $("tshared").onclick = tShared; $("tcov").onclick = tCov; $("tapi").onclick = tApi; $("tui").onclick = tUi;
+// ---- execution flow (GET /api/v1/graph/flows) and automation script (POST /api/v1/automation/script) ----
+$("flowrun").onclick = async () => {
+  busy($("flowrun"), true); msg("flowmsg", "Reading the graph...");
+  try {
+    const q = new URLSearchParams();
+    if ($("flowep").value.trim()) q.set("endpoint", $("flowep").value.trim());
+    if ($("flowrepo").value.trim()) q.set("repos", $("flowrepo").value.trim());
+    const j = await api("/api/v1/graph/flows?" + q);
+    const design = (j.design || []).map(d => `<h3 style="font-size:13px">${esc(d.service)} <span class="mut">${Object.entries(d.roles).map(([k, v]) => `${esc(k)}: ${v}`).join(" · ")}</span></h3>
+      <p><b>Controllers</b>: ${d.controllers.map(c => `<code>${esc(c.function)}</code> (${esc(c.serves.join(", "))})`).join(", ") || '<span class="mut">none</span>'}</p>
+      <p><b>Models</b>: ${d.models.map(m => `<code>${esc(m.name)}</code>`).join(", ") || '<span class="mut">none</span>'} &nbsp; <b>Entities</b>: ${d.entities.map(m => `<code>${esc(m.name)}</code> <span class="mut">(${esc(m.used_by.length)} entry point(s))</span>`).join(", ") || '<span class="mut">none</span>'}</p>`).join("");
+    $("flowout").innerHTML = (j.text || []).map(t => `<pre class="json" style="white-space:pre">${esc(t)}</pre>`).join("") + design +
+      (j.flows && j.flows[0] ? `<p class="mut">${esc(j.flows[0].note)}</p>` : '<p class="mut">No entry point found.</p>');
+    msg("flowmsg", `${(j.flows || []).length} entry point(s)`);
+  } catch (e) { msg("flowmsg", e.message, "err"); }
+  busy($("flowrun"), false);
+};
+$("scrrun").onclick = async () => {
+  busy($("scrrun"), true); msg("scrmsg", "Generating...");
+  try {
+    const j = await api("/api/v1/automation/script", {method: "POST", body: {repo: $("scrrepo").value.trim(), from: $("scrfrom").value.trim(), to: $("scrto").value.trim()}});
+    $("scrout").innerHTML = `<p><b>Screens</b>: ${j.screens.map(s => `<code>${esc(s)}</code>`).join(" → ")} &nbsp; <span class="mut">${esc(j.note)}</span></p>` +
+      (j.unknowns.length ? `<div class="banner"><b>To review</b><ul>${j.unknowns.map(u => `<li>${esc(u.screen)}: ${esc(u.what)} - ${esc(u.detail)}</li>`).join("")}</ul></div>` : "") +
+      `<pre class="json" style="white-space:pre" id="scrcode">${esc(j.script)}</pre>`;
+    msg("scrmsg", j.file_name);
+  } catch (e) { msg("scrmsg", e.message, "err"); }
+  busy($("scrrun"), false);
+};
 $("tccheck").onclick = async () => {
   busy($("tccheck"), true); msg("tcmsg", "Checking...");
   try {

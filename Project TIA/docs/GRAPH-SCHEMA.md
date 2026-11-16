@@ -1,7 +1,7 @@
 # TIA graph schema
 
 *Generated from [tia/graphschema.py](../tia/graphschema.py) by `tools/gen_graph_schema.py`; do not edit by hand (a test fails when it is out of
-date). Schema version `gs-2`.*
+date). Schema version `gs-3`.*
 
 Written for the people who decide how TIA's knowledge is represented, and for anyone who queries it (Knowledge Fabric agents, Cypher, the
 API). This is the fixed representation every use case is answered from (see [MEETING-PAWAN.md](MEETING-PAWAN.md)). It changes only by a
@@ -48,7 +48,7 @@ Only relationships with an impact direction carry a change. A relationship marke
 | `function` | `TiaFunction` | A function or method (qualified name). | `name`, `repo`, `service`, `file`, `line` |
 | `type` | `TiaType` | A class, interface or record (for inheritance). | `name`, `kind`, `repo`, `file`, `line` |
 | `schema` | `TiaSchema` | A request or response body type declared in code or OpenAPI. | `name`, `repo`, `file`, `line` |
-| `callsite` | `TiaCallsite` | An outbound HTTP call in code (the consumer side of CONSUMES_API). | `repo`, `file`, `line` |
+| `callsite` | `TiaCallsite` | An outbound HTTP call in code (the consumer side of CONSUMES_API). | `repo`, `file`, `line`; when declared: `client_pkg`, `client_attr` |
 | `test` | `TiaTest` | An automated test in a repository. | `name`, `repo`, `file`, `line` |
 | `contract_ref` | `TiaContractRef` | A consumer contract declared in a repository whose code does not show the call. | `repo`, `service`, `file` |
 | `runtime_ref` | `TiaRuntimeRef` | A caller seen only in runtime telemetry (added to an analysis's own copy of the graph). | `service`, `repo` |
@@ -87,6 +87,7 @@ Only relationships with an impact direction carry a change. A relationship marke
 | `request` | `TiaRequest` | What an endpoint accepts: its parameters and request body. | `name`, `body_schema`, `repo`, `service` |
 | `response` | `TiaResponse` | What an endpoint answers: body schema, success status, shape, error statuses. | `name`, `schema`, `success_status`, `shape`, `error_statuses`, `repo`, `service` |
 | `field` | `TiaField` | One input or output field with its definition: where it goes (path, query, header, body), type, required, allowed values and limits. *(many per parent: left out of overview pictures)* | `name`, `in`, `field_type`, `required`, `multi`, `nullable`, `repo`, `service`; when declared: `allowed_values`, `max_length`, `min_length`, `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum`, `pattern`, `format` |
+| `example` | `TiaExample` | An example or expected response: from the OpenAPI specification, or what a test asserts about the response (partial when the test checks only some fields). The body is JSON text. *(many per parent: left out of overview pictures)* | `name`, `status`, `body_json`, `partial`, `source`, `repo`, `service`, `file`, `line`; when declared: `test` |
 
 ### Business rules
 
@@ -117,10 +118,12 @@ Only relationships with an impact direction carry a change. A relationship marke
 | `HAS_SCREEN` | `application` | `screen` | not traversed | The application has the screen. |
 | `HAS_ELEMENT` | `screen` | `element` | not traversed | The screen shows the element. |
 | `LOCATED_BY` | `element` | `locator` | not traversed | One way to find the element (best first: rank 1). |
+| `NAVIGATES_TO` | `screen` | `screen` | not traversed | The screen sends the user to another screen (a link, or a navigation call in its code). |
 | `CALLS_API` | `screen` | `endpoint` | not traversed | The screen calls the endpoint (matched by method and path; inferred when more than one endpoint matches). |
 | `ACCEPTS` | `endpoint` | `request` | not traversed | The endpoint's request. |
 | `RETURNS` | `endpoint` | `response` | not traversed | The endpoint's response. |
 | `HAS_FIELD` | `request`, `response` | `field` | not traversed | A field of the request or response. |
+| `HAS_EXAMPLE` | `response` | `example` | not traversed | An example or expected response. |
 | `APPLIES_RULE` | `function` | `rule` | not traversed | The function applies the business rule. |
 
 Every relationship also records its evidence: `status` (`source_confirmed`, `contract_confirmed`, `runtime_observed`, `inferred`, ...), the `strategy` that found it, the inference `rule` when it is inferred, and the repository, file, line and commit it came from.

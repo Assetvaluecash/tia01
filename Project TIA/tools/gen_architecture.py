@@ -51,7 +51,7 @@ LAYERS = [
      "into the report and the tester views (test scope, regression test selection, configuration checks, coverage, automation inventory, "
      "tester pack, graph questions).",
      ["impact", "enrich", "evidence", "report", "findingfilter", "findings_catalog", "structure", "communities", "diagram",
-      "testscope", "coverage", "automation", "testerpack", "graphquery", "graphview", "regression", "configkeys"]),
+      "testscope", "coverage", "automation", "testerpack", "graphquery", "graphview", "regression", "configkeys", "flows", "scripts"]),
     ("graph", "Graph and identity resolution", "#0e7490",
      "Connects facts from many repositories into one typed graph: who calls which endpoint, which code reads which table, with the "
      "resolution strategy and evidence on every edge, plus the use-case structure (screens, elements, locators, requests, fields, rules). "
