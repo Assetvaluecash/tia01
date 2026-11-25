@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TIA API (Swagger)</title>
+  <!-- Swagger UI from a CDN, pinned. The OpenAPI document itself is local (spec.js), so this page also opens straight from the folder. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+  <style>
+    body { margin: 0; background: #fff; }
+    .tia-bar { font: 14px/1.4 system-ui, sans-serif; padding: 10px 16px; background: #1b2b3a; color: #e8eef4; }
+    .tia-bar a { color: #9fd0ff; }
+  </style>
+</head>
+<body>
+  <div class="tia-bar">TIA - Technical Impact Analysis API &middot; generated from the code and the test suite &middot;
+    <a href="openapi.json">openapi.json</a> &middot; <a href="openapi.yaml">openapi.yaml</a> &middot; <a href="COVERAGE.md">COVERAGE.md</a></div>
+  <div id="swagger-ui"></div>
+  <script src="spec.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      spec: window.TIA_OPENAPI,
+      dom_id: "#swagger-ui",
+      deepLinking: true,
+      docExpansion: "none",
+      defaultModelsExpandDepth: 0,
+      defaultModelExpandDepth: 3,
+      displayOperationId: false,
+      filter: true,
+      tryItOutEnabled: false,
+      persistAuthorization: false
+    });
+  </script>
+</body>
+</html>
